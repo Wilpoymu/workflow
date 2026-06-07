@@ -221,7 +221,7 @@ class ForgeBridge:
                     await self._flush_pending(ws, account_hash)
                 elif t == "result":
                     logger.info("[BRIDGE] Result received: batch=%s results=%d from=%s", msg.get("batchId"), len(msg.get("results", [])), (account_hash or "?")[:12])
-                    await self._handle_result(msg["batchId"], msg.get("results", []), account_hash)
+                    await self._handle_result(msg.get("batchId"), msg.get("results", []), account_hash)
         except websockets.exceptions.ConnectionClosed:
             pass
         finally:
