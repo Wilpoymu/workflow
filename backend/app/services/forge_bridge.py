@@ -183,6 +183,28 @@ class ForgeBridge:
             state = {"done": 0, "failed": 0, "total": 0, "results": {}}
         return state
 
+    def get_batch_progress(self, batch_id: str) -> dict | None:
+        """Get current progress of a batch without waiting"""
+        state = self._batch_results.get(batch_id)
+        if not state:
+            return None
+        total = state.get("total", 1)
+        done = state.get("done", 0)
+        failed = state.get("failed", 0)
+        return {"total": total, "done": done, "failed": failed, "progress": (done + failed) / max(total, 1)}
+
+    def cancel_batch(self, batch_id: str) -> bool:
+        """Cancel a pending/running batch"""
+        state = self._batch_results.pop(batch_id, None)
+        if not state:
+            return False
+        self._pending_chunks.pop(batch_id, None)
+        evt = self._batch_events.pop(batch_id, None)
+        if evt:
+            evt.set()
+        logger.info("Batch %s cancelled", batch_id)
+        return True
+
     async def _handler(self, ws: ServerConnection):
         account_hash = None
         logger.info("New WS connection from client")

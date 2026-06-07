@@ -214,6 +214,7 @@ export const api = {
       started_at: string | null
       completed_at: string | null
       results: Record<string, unknown>
+      stage_timings: Record<string, any>
     }>(`/api/projects/${projectId}/workflow`),
 
   cancelWorkflow: (projectId: string) =>
