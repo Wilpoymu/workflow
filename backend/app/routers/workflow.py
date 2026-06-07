@@ -37,6 +37,7 @@ class WorkflowStateResponse(BaseModel):
     started_at: Optional[str]
     completed_at: Optional[str]
     results: dict
+    stage_timings: dict[str, dict] = {}
 
 
 @router.post("")
@@ -100,6 +101,7 @@ async def get_workflow_status(project_id: str):
         started_at=workflow.started_at.isoformat() if workflow.started_at else None,
         completed_at=workflow.completed_at.isoformat() if workflow.completed_at else None,
         results=workflow.results,
+        stage_timings=workflow.stage_timings,
     )
 
 

@@ -50,6 +50,11 @@ class WorkflowState:
         self.started_at: Optional[datetime] = None
         self.completed_at: Optional[datetime] = None
         self.results: dict = {}
+        self.stage_timings: dict[str, dict] = {
+            PipelineStage.GENERATE: {},
+            PipelineStage.TRANSCRIBE: {},
+            PipelineStage.RENDER: {},
+        }
 
 
 # Estado global de workflows activos
@@ -109,6 +114,7 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
         # ═══════════════════════════════════════════════════════════════
         workflow.current_stage = PipelineStage.GENERATE
         workflow.stage_status[PipelineStage.GENERATE] = PipelineStatus.RUNNING
+        workflow.stage_timings[PipelineStage.GENERATE]["started_at"] = datetime.utcnow().isoformat()
         await sse_manager.emit_workflow_stage_start(project_id, PipelineStage.GENERATE)
 
         try:
@@ -135,6 +141,9 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
                 workflow.stage_progress[PipelineStage.GENERATE] = 1.0
                 workflow.stage_status[PipelineStage.GENERATE] = PipelineStatus.COMPLETED
                 workflow.results["generate"] = {"completed": 0, "failed": 0, "total": 0, "skipped": True}
+                st = workflow.stage_timings[PipelineStage.GENERATE]
+                st["completed_at"] = datetime.utcnow().isoformat()
+                st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
                 await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.GENERATE)
             else:
                 total = len(pending)
@@ -152,7 +161,31 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
                 if sent == 0:
                     raise RuntimeError("No prompts were dispatched. Check connected accounts.")
 
-                result = await bridge.wait_for_batch(batch_id, timeout=600)
+                # Poll for progress with cancellation support
+                result = None
+                while result is None:
+                    # Check if workflow was cancelled
+                    wf = _active_workflows.get(project_id)
+                    if wf and wf.status == PipelineStatus.FAILED:
+                        bridge.cancel_batch(batch_id)
+                        raise RuntimeError("Workflow cancelled by user")
+
+                    progress_data = bridge.get_batch_progress(batch_id)
+                    if progress_data:
+                        pct = progress_data["progress"]
+                        workflow.stage_progress[PipelineStage.GENERATE] = pct
+                        await sse_manager.emit_workflow_progress(
+                            project_id, PipelineStage.GENERATE, pct,
+                            f"Generated {progress_data['done']}/{progress_data['total']} images",
+                        )
+
+                    try:
+                        result = await asyncio.wait_for(
+                            bridge.wait_for_batch(batch_id, timeout=5),
+                            timeout=5,
+                        )
+                    except asyncio.TimeoutError:
+                        pass  # Poll again
 
                 completed = result.get("done", 0)
                 failed = result.get("failed", 0)
@@ -160,11 +193,18 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
                 workflow.stage_progress[PipelineStage.GENERATE] = 1.0
                 workflow.stage_status[PipelineStage.GENERATE] = PipelineStatus.COMPLETED
                 workflow.results["generate"] = {"completed": completed, "failed": failed, "total": total}
+                st = workflow.stage_timings[PipelineStage.GENERATE]
+                st["completed_at"] = datetime.utcnow().isoformat()
+                st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
                 await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.GENERATE)
 
         except Exception as e:
             workflow.stage_status[PipelineStage.GENERATE] = PipelineStatus.FAILED
             workflow.error = f"Generate stage failed: {str(e)}"
+            st = workflow.stage_timings[PipelineStage.GENERATE]
+            st["failed_at"] = datetime.utcnow().isoformat()
+            if "started_at" in st:
+                st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
             await sse_manager.emit_workflow_stage_failed(project_id, PipelineStage.GENERATE, str(e))
             raise
         # ═══════════════════════════════════════════════════════════════
@@ -172,6 +212,7 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
         # ═══════════════════════════════════════════════════════════════
         workflow.current_stage = PipelineStage.TRANSCRIBE
         workflow.stage_status[PipelineStage.TRANSCRIBE] = PipelineStatus.RUNNING
+        workflow.stage_timings[PipelineStage.TRANSCRIBE]["started_at"] = datetime.utcnow().isoformat()
         await sse_manager.emit_workflow_stage_start(project_id, PipelineStage.TRANSCRIBE)
         
         try:
@@ -221,11 +262,18 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
             workflow.stage_progress[PipelineStage.TRANSCRIBE] = 1.0
             workflow.stage_status[PipelineStage.TRANSCRIBE] = PipelineStatus.COMPLETED
             workflow.results["transcribe"] = {"words": len([w for w in segment.words if w.type == "word"])}
+            st = workflow.stage_timings[PipelineStage.TRANSCRIBE]
+            st["completed_at"] = datetime.utcnow().isoformat()
+            st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
             await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.TRANSCRIBE)
             
         except Exception as e:
             workflow.stage_status[PipelineStage.TRANSCRIBE] = PipelineStatus.FAILED
             workflow.error = f"Transcribe stage failed: {str(e)}"
+            st = workflow.stage_timings[PipelineStage.TRANSCRIBE]
+            st["failed_at"] = datetime.utcnow().isoformat()
+            if "started_at" in st:
+                st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
             await sse_manager.emit_workflow_stage_failed(project_id, PipelineStage.TRANSCRIBE, str(e))
             raise
         
@@ -234,6 +282,7 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
         # ═══════════════════════════════════════════════════════════════
         workflow.current_stage = PipelineStage.RENDER
         workflow.stage_status[PipelineStage.RENDER] = PipelineStatus.RUNNING
+        workflow.stage_timings[PipelineStage.RENDER]["started_at"] = datetime.utcnow().isoformat()
         await sse_manager.emit_workflow_stage_start(project_id, PipelineStage.RENDER)
         
         try:
@@ -271,11 +320,18 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
             workflow.stage_progress[PipelineStage.RENDER] = 1.0
             workflow.stage_status[PipelineStage.RENDER] = PipelineStatus.COMPLETED
             workflow.results["render"] = {"output": str(output_path)}
+            st = workflow.stage_timings[PipelineStage.RENDER]
+            st["completed_at"] = datetime.utcnow().isoformat()
+            st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
             await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.RENDER)
             
         except Exception as e:
             workflow.stage_status[PipelineStage.RENDER] = PipelineStatus.FAILED
             workflow.error = f"Render stage failed: {str(e)}"
+            st = workflow.stage_timings[PipelineStage.RENDER]
+            st["failed_at"] = datetime.utcnow().isoformat()
+            if "started_at" in st:
+                st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
             await sse_manager.emit_workflow_stage_failed(project_id, PipelineStage.RENDER, str(e))
             raise
         

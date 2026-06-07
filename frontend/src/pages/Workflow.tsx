@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useParams } from "react-router-dom"
-import { Play, Square, CheckCircle, XCircle, Loader2, Image, Mic, Video, Folder, FileText, Clock } from "lucide-react"
+import { Play, Square, CheckCircle, XCircle, Loader2, Image, Mic, Video, Folder, FileText, Clock, AlertTriangle } from "lucide-react"
 import PageHeader from "../components/PageHeader"
 import Card from "../components/Card"
 import ProgressBar from "../components/ProgressBar"
+import Modal from "../components/Modal"
 import EmptyState from "../components/EmptyState"
 import { useToast } from "../components/Toast"
 import { api } from "../api/client"
@@ -20,7 +21,7 @@ interface StageState {
 }
 
 interface WorkflowState {
-  status: "idle" | "running" | "completed" | "failed"
+  status: "idle" | "running" | "completed" | "failed" | "cancelled"
   currentStage: StageKey | null
   stages: Record<StageKey, StageState>
   error: string | null
@@ -50,6 +51,9 @@ export default function Workflow() {
 
   const [project, setProject] = useState<ProjectMetadata | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
+  const [stageTimings, setStageTimings] = useState<Record<string, any>>({})
 
   const esRef = useRef<EventSource | null>(null)
 
@@ -105,6 +109,41 @@ export default function Workflow() {
     return () => { esRef.current?.close() }
   }, [])
 
+  // Polling fallback when workflow is running (SSE might miss events)
+  useEffect(() => {
+    if (workflow.status !== "running") return
+    const interval = setInterval(async () => {
+      if (!projectId) return
+      try {
+        const res = await api.getWorkflowStatus(projectId)
+        setWorkflow((prev) => ({
+          ...prev,
+          status: res.status as WorkflowState["status"],
+          currentStage: res.current_stage as StageKey | null,
+          stages: {
+            generate: { ...prev.stages.generate, status: (res.stages.generate?.status || prev.stages.generate.status) as StageStatus, progress: res.stages.generate?.progress ?? prev.stages.generate.progress },
+            transcribe: { ...prev.stages.transcribe, status: (res.stages.transcribe?.status || prev.stages.transcribe.status) as StageStatus, progress: res.stages.transcribe?.progress ?? prev.stages.transcribe.progress },
+            render: { ...prev.stages.render, status: (res.stages.render?.status || prev.stages.render.status) as StageStatus, progress: res.stages.render?.progress ?? prev.stages.render.progress },
+          },
+          error: res.error,
+        }))
+        if (res.stage_timings) setStageTimings(res.stage_timings)
+      } catch {}
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [workflow.status, projectId])
+
+  // Live timer — counts up every second while running
+  useEffect(() => {
+    if (workflow.status !== "running") return
+    setElapsed(0)
+    const start = Date.now()
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - start) / 1000))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [workflow.status])
+
   const connectSSE = () => {
     if (!projectId) return
     esRef.current?.close()
@@ -151,7 +190,8 @@ export default function Workflow() {
     })
 
     es.onerror = () => {
-      setWorkflow((prev) => ({ ...prev, status: "failed", error: "SSE connection error" }))
+      // SSE error is expected when connection drops; polling will catch up
+      console.log("[Workflow] SSE connection error (polling fallback active)")
     }
   }
 
@@ -159,19 +199,24 @@ export default function Workflow() {
     if (!projectId) return
     connectSSE()
     try {
-      await api.startWorkflow(projectId)
+      const savedConcurrency = projectId ? sessionStorage.getItem(`images-${projectId}-concurrency`) : null
+      const savedAccounts = projectId ? sessionStorage.getItem(`images-${projectId}-accounts`) : null
+      const config: Record<string, any> = {}
+      if (savedConcurrency) config.concurrency = Number(savedConcurrency)
+      if (savedAccounts) config.accounts = JSON.parse(savedAccounts)
+      await api.startWorkflow(projectId, config)
       setWorkflow((prev) => ({ ...prev, status: "running", error: null }))
     } catch (err: any) {
       toast(err?.message ?? "Failed to start workflow", "error")
     }
   }
 
-  const handleCancel = async () => {
+  const handleCancelConfirm = async () => {
     if (!projectId) return
-    if (!window.confirm("Are you sure you want to cancel the current workflow? This cannot be undone.")) return
     try {
       await api.cancelWorkflow(projectId)
-      setWorkflow((prev) => ({ ...prev, status: "failed", error: "Cancelled by user" }))
+      setShowCancelModal(false)
+      setWorkflow((prev) => ({ ...prev, status: "cancelled", error: "Cancelled by user" }))
     } catch (err: any) {
       toast(err?.message ?? "Failed to cancel workflow", "error")
     }
@@ -189,7 +234,7 @@ export default function Workflow() {
 
   const isRunning = workflow.status === "running"
   const isCompleted = workflow.status === "completed"
-  const isFailed = workflow.status === "failed"
+  const isFailed = workflow.status === "failed" || workflow.status === "cancelled"
   const isIdle = workflow.status === "idle"
 
   return (
@@ -199,7 +244,7 @@ export default function Workflow() {
         description="Run the complete pipeline: generate images, transcribe audio, render video"
         actions={
           isRunning ? (
-            <button className="btn-secondary" onClick={handleCancel}>
+            <button className="btn-secondary" onClick={() => setShowCancelModal(true)}>
               <Square className="w-4 h-4" />
               Cancel
             </button>
@@ -269,19 +314,43 @@ export default function Workflow() {
             <CheckCircle className="w-5 h-5 text-green-400" />
             <div>
               <p className="text-sm font-medium text-green-400">Workflow Completed</p>
-              <p className="text-xs text-gray-500">All stages finished successfully</p>
+              <p className="text-xs text-gray-500">
+                Total time: {Math.floor(elapsed / 60)}m {elapsed % 60}s
+              </p>
             </div>
           </div>
         </Card>
       )}
 
       {isFailed && (
-        <Card className="mb-6 border-red-500/30 bg-red-500/5">
+        <Card className={`mb-6 ${workflow.status === "cancelled" ? "border-yellow-500/30 bg-yellow-500/5" : "border-red-500/30 bg-red-500/5"}`}>
           <div className="flex items-center gap-3">
-            <XCircle className="w-5 h-5 text-red-400" />
+            {workflow.status === "cancelled" ? (
+              <AlertTriangle className="w-5 h-5 text-yellow-400" />
+            ) : (
+              <XCircle className="w-5 h-5 text-red-400" />
+            )}
             <div>
-              <p className="text-sm font-medium text-red-400">Workflow Failed</p>
+              <p className={`text-sm font-medium ${workflow.status === "cancelled" ? "text-yellow-400" : "text-red-400"}`}>
+                {workflow.status === "cancelled" ? "Workflow Cancelled" : "Workflow Failed"}
+              </p>
               <p className="text-xs text-gray-500">{workflow.error}</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Running Banner with Timer */}
+      {isRunning && (
+        <Card className="mb-6 border-accent/30 bg-accent/5">
+          <div className="flex items-center gap-3">
+            <Loader2 className="w-5 h-5 text-accent animate-spin" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-accent">Workflow Running</p>
+              <p className="text-xs text-gray-500">
+                Elapsed: {Math.floor(elapsed / 60)}m {elapsed % 60}s
+                {workflow.currentStage && ` — Stage: ${STAGE_CONFIG[workflow.currentStage as StageKey]?.label || workflow.currentStage}`}
+              </p>
             </div>
           </div>
         </Card>
@@ -335,11 +404,17 @@ export default function Workflow() {
                   )}
 
                   {stage.status === "completed" && (
-                    <p className="text-xs text-green-400 mt-1">Completed</p>
+                    <p className="text-xs text-green-400 mt-1">
+                      Completed
+                      {stageTimings[stageKey]?.duration_s ? ` — ${Math.round(stageTimings[stageKey].duration_s / 60)}m ${Math.round(stageTimings[stageKey].duration_s % 60)}s` : ""}
+                    </p>
                   )}
 
                   {stage.status === "failed" && (
-                    <p className="text-xs text-red-400 mt-1">Failed</p>
+                    <p className="text-xs text-red-400 mt-1">
+                      Failed
+                      {stageTimings[stageKey]?.duration_s ? ` (${Math.round(stageTimings[stageKey].duration_s / 60)}m ${Math.round(stageTimings[stageKey].duration_s % 60)}s)` : ""}
+                    </p>
                   )}
 
                   {stage.status === "idle" && (
@@ -399,6 +474,14 @@ export default function Workflow() {
           </p>
         </Card>
       )}
+
+      <Modal open={showCancelModal} onClose={() => setShowCancelModal(false)} title="Cancel Workflow">
+        <p className="text-sm text-gray-300 mb-6">Are you sure you want to cancel the current workflow? This cannot be undone.</p>
+        <div className="flex justify-end gap-3">
+          <button className="btn-secondary" onClick={() => setShowCancelModal(false)}>Keep Running</button>
+          <button className="btn-primary !bg-red-600 !border-red-600 hover:!bg-red-700" onClick={handleCancelConfirm}>Yes, Cancel</button>
+        </div>
+      </Modal>
     </div>
   )
 }
