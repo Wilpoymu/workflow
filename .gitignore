@@ -1,0 +1,56 @@
+# ── Python ─────────────────────────────────────────────
+**/__pycache__/
+**/*.pyc
+backend/.venv/
+backend/venv/
+backend/.pytest_cache/
+backend/*.egg-info/
+backend/dist/
+backend/build/
+backend/.coverage
+backend/htmlcov/
+backend/workflow.db
+
+# ── Node / Frontend ────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.tsbuildinfo
+
+# ── Extension ──────────────────────────────────────────
+extension/.output/
+extension/.wxt/
+extension/node_modules/
+
+# ── OS ─────────────────────────────────────────────────
+Thumbs.db
+.DS_Store
+*.swp
+*.swo
+*~
+
+# ── IDE ────────────────────────────────────────────────
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ── Env ────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# ── Logs ───────────────────────────────────────────────
+*.log
+
+# ── Project config (not code) ──────────────────────────
+PLAN.md
+MIGRATION_PLAN.md
+skills-lock.json
+start.bat
+.playwright-mcp/
+
+# ── Docs (third-party, not source) ─────────────────────
+docs/
+

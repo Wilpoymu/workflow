@@ -1,0 +1,316 @@
+"""
+Orchestrator service - Pipeline completo de un solo clic
+Ejecuta: generate images → transcribe audio → render video
+"""
+import asyncio
+import logging
+import uuid
+from pathlib import Path
+from typing import Optional
+from datetime import datetime
+
+from app.services.forge_bridge import bridge
+from app.services.whisper_pipeline import transcribe_audio, save_transcription
+from app.services.kenburns import render_kenburns_video, KenBurnsConfig
+from app.services import project_service
+from app.core.sse import sse_manager
+
+logger = logging.getLogger(__name__)
+
+
+class PipelineStage:
+    GENERATE = "generate"
+    TRANSCRIBE = "transcribe"
+    RENDER = "render"
+
+
+class PipelineStatus:
+    IDLE = "idle"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class WorkflowState:
+    def __init__(self, project_id: str):
+        self.project_id = project_id
+        self.status = PipelineStatus.IDLE
+        self.current_stage: Optional[str] = None
+        self.stage_progress: dict[str, float] = {
+            PipelineStage.GENERATE: 0.0,
+            PipelineStage.TRANSCRIBE: 0.0,
+            PipelineStage.RENDER: 0.0,
+        }
+        self.stage_status: dict[str, str] = {
+            PipelineStage.GENERATE: PipelineStatus.IDLE,
+            PipelineStage.TRANSCRIBE: PipelineStatus.IDLE,
+            PipelineStage.RENDER: PipelineStatus.IDLE,
+        }
+        self.error: Optional[str] = None
+        self.started_at: Optional[datetime] = None
+        self.completed_at: Optional[datetime] = None
+        self.results: dict = {}
+
+
+# Estado global de workflows activos
+_active_workflows: dict[str, WorkflowState] = {}
+
+
+def get_workflow_state(project_id: str) -> Optional[WorkflowState]:
+    """Obtener el estado de un workflow"""
+    return _active_workflows.get(project_id)
+
+
+async def start_workflow(
+    project_id: str,
+    render_config: Optional[dict] = None,
+    concurrency: int = 2,
+    accounts: list[str] | None = None,
+) -> str:
+    """
+    Iniciar el pipeline completo para un proyecto.
+    Retorna el project_id.
+    """
+    if project_id in _active_workflows:
+        workflow = _active_workflows[project_id]
+        if workflow.status == PipelineStatus.RUNNING:
+            raise RuntimeError(f"Workflow already running for project {project_id}")
+    
+    # Crear estado del workflow
+    workflow = WorkflowState(project_id)
+    workflow.status = PipelineStatus.RUNNING
+    workflow.started_at = datetime.utcnow()
+    _active_workflows[project_id] = workflow
+    
+    # Emitir evento de inicio
+    await sse_manager.emit_workflow_start(project_id)
+    
+    # Ejecutar pipeline en background
+    asyncio.create_task(_run_pipeline(project_id, render_config or {}, concurrency, accounts or []))
+    
+    return project_id
+
+
+async def _run_pipeline(project_id: str, render_config: dict, concurrency: int = 2, accounts: list[str] | None = None):
+    """Ejecutar el pipeline completo"""
+    workflow = _active_workflows.get(project_id)
+    if not workflow:
+        return
+    
+    try:
+        # Obtener proyecto
+        project = await project_service.get_project(project_id)
+        if not project:
+            raise RuntimeError(f"Project {project_id} not found")
+        
+        project_path = Path(project.base_dir)
+        # ═══════════════════════════════════════════════════════════════
+        # STAGE 1: GENERATE IMAGES
+        # ═══════════════════════════════════════════════════════════════
+        workflow.current_stage = PipelineStage.GENERATE
+        workflow.stage_status[PipelineStage.GENERATE] = PipelineStatus.RUNNING
+        await sse_manager.emit_workflow_stage_start(project_id, PipelineStage.GENERATE)
+
+        try:
+            fragments = await project_service.list_fragments(project_id)
+            pending = [f for f in fragments if f.image_prompt.strip()]
+            if not pending:
+                raise RuntimeError("No fragments with prompts found. Generate prompts in Editor first.")
+
+            # Skip fragments that already have a generated image
+            img_dir = project_path / "imagenes"
+            existing_ids: set[int] = set()
+            if img_dir.exists():
+                for p in img_dir.glob("escena_*.png"):
+                    try:
+                        fid = int(p.stem.split("_")[1])
+                        existing_ids.add(fid)
+                    except (IndexError, ValueError):
+                        pass
+            if existing_ids:
+                logger.info("[WORKFLOW] %d images already exist, skipping them", len(existing_ids))
+                pending = [f for f in pending if f.fragment_id not in existing_ids]
+            if not pending:
+                logger.info("[WORKFLOW] All fragments already have images, skipping generate stage")
+                workflow.stage_progress[PipelineStage.GENERATE] = 1.0
+                workflow.stage_status[PipelineStage.GENERATE] = PipelineStatus.COMPLETED
+                workflow.results["generate"] = {"completed": 0, "failed": 0, "total": 0, "skipped": True}
+                await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.GENERATE)
+            else:
+                total = len(pending)
+                batch_id = uuid.uuid4().hex[:8]
+
+                sent = await bridge.dispatch(
+                    project_id,
+                    str(project_path),
+                    pending,
+                    batch_id,
+                    concurrency=concurrency,
+                    selected_accounts=accounts,
+                )
+
+                if sent == 0:
+                    raise RuntimeError("No prompts were dispatched. Check connected accounts.")
+
+                result = await bridge.wait_for_batch(batch_id, timeout=600)
+
+                completed = result.get("done", 0)
+                failed = result.get("failed", 0)
+
+                workflow.stage_progress[PipelineStage.GENERATE] = 1.0
+                workflow.stage_status[PipelineStage.GENERATE] = PipelineStatus.COMPLETED
+                workflow.results["generate"] = {"completed": completed, "failed": failed, "total": total}
+                await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.GENERATE)
+
+        except Exception as e:
+            workflow.stage_status[PipelineStage.GENERATE] = PipelineStatus.FAILED
+            workflow.error = f"Generate stage failed: {str(e)}"
+            await sse_manager.emit_workflow_stage_failed(project_id, PipelineStage.GENERATE, str(e))
+            raise
+        # ═══════════════════════════════════════════════════════════════
+        # STAGE 2: TRANSCRIBE AUDIO
+        # ═══════════════════════════════════════════════════════════════
+        workflow.current_stage = PipelineStage.TRANSCRIBE
+        workflow.stage_status[PipelineStage.TRANSCRIBE] = PipelineStatus.RUNNING
+        await sse_manager.emit_workflow_stage_start(project_id, PipelineStage.TRANSCRIBE)
+        
+        try:
+            # Buscar archivo de audio
+            audio_dir = project_path / "audio"
+            audio_dir.mkdir(exist_ok=True)
+            audio_files = list(audio_dir.glob("*.mp3")) + list(audio_dir.glob("*.wav"))
+
+            if not audio_files:
+                audio_extensions = [".mp3", ".wav", ".m4a", ".ogg", ".flac"]
+                for ext in audio_extensions:
+                    for f in project_path.glob(f"*{ext}"):
+                        dest = audio_dir / f.name
+                        f.rename(dest)
+                        audio_files.append(dest)
+
+            if not audio_files:
+                raise RuntimeError("No audio file found. Upload an audio file first.")
+            
+            audio_file = audio_files[0]
+            
+            # Función de callback para progreso (se llama desde thread pool)
+            def progress_callback(progress: float, message: str):
+                workflow.stage_progress[PipelineStage.TRANSCRIBE] = progress
+                asyncio.run_coroutine_threadsafe(
+                    sse_manager.emit_workflow_progress(
+                        project_id,
+                        PipelineStage.TRANSCRIBE,
+                        progress,
+                        message
+                    ),
+                    loop
+                )
+            
+            # Transcribir (ejecutar en thread pool)
+            loop = asyncio.get_event_loop()
+            segment = await loop.run_in_executor(
+                None,
+                lambda: transcribe_audio(str(audio_file), progress_callback)
+            )
+            
+            # Guardar transcripción
+            text_path = project_path / "text.txt"
+            text_path_arg = str(text_path) if text_path.exists() else None
+            save_transcription(str(project_path), segment, text_path_arg)
+            
+            workflow.stage_progress[PipelineStage.TRANSCRIBE] = 1.0
+            workflow.stage_status[PipelineStage.TRANSCRIBE] = PipelineStatus.COMPLETED
+            workflow.results["transcribe"] = {"words": len([w for w in segment.words if w.type == "word"])}
+            await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.TRANSCRIBE)
+            
+        except Exception as e:
+            workflow.stage_status[PipelineStage.TRANSCRIBE] = PipelineStatus.FAILED
+            workflow.error = f"Transcribe stage failed: {str(e)}"
+            await sse_manager.emit_workflow_stage_failed(project_id, PipelineStage.TRANSCRIBE, str(e))
+            raise
+        
+        # ═══════════════════════════════════════════════════════════════
+        # STAGE 3: RENDER VIDEO
+        # ═══════════════════════════════════════════════════════════════
+        workflow.current_stage = PipelineStage.RENDER
+        workflow.stage_status[PipelineStage.RENDER] = PipelineStatus.RUNNING
+        await sse_manager.emit_workflow_stage_start(project_id, PipelineStage.RENDER)
+        
+        try:
+            # Configurar Ken Burns
+            config = KenBurnsConfig(
+                filter_mode=render_config.get("filter_mode", "all"),
+                width=render_config.get("width", 1920),
+                height=render_config.get("height", 1080),
+                fps=render_config.get("fps", 30),
+                intensity=render_config.get("intensity", 0.04),
+                seed=render_config.get("seed", 42),
+                subtitles=render_config.get("subtitles", True),
+            )
+            
+            # Función de callback para progreso
+            def render_progress_callback(progress: float, message: str):
+                workflow.stage_progress[PipelineStage.RENDER] = progress
+                asyncio.create_task(sse_manager.emit_workflow_progress(
+                    project_id,
+                    PipelineStage.RENDER,
+                    progress,
+                    message
+                ))
+            
+            # Renderizar video
+            output_path = await render_kenburns_video(
+                str(project_path),
+                config,
+                render_progress_callback
+            )
+            
+            if not output_path:
+                raise RuntimeError("Render failed - no output file")
+            
+            workflow.stage_progress[PipelineStage.RENDER] = 1.0
+            workflow.stage_status[PipelineStage.RENDER] = PipelineStatus.COMPLETED
+            workflow.results["render"] = {"output": str(output_path)}
+            await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.RENDER)
+            
+        except Exception as e:
+            workflow.stage_status[PipelineStage.RENDER] = PipelineStatus.FAILED
+            workflow.error = f"Render stage failed: {str(e)}"
+            await sse_manager.emit_workflow_stage_failed(project_id, PipelineStage.RENDER, str(e))
+            raise
+        
+        # ═══════════════════════════════════════════════════════════════
+        # PIPELINE COMPLETED
+        # ═══════════════════════════════════════════════════════════════
+        workflow.current_stage = None
+        workflow.status = PipelineStatus.COMPLETED
+        workflow.completed_at = datetime.utcnow()
+        await sse_manager.emit_workflow_complete(project_id, workflow.results)
+        
+        logger.info(f"Workflow completed for project {project_id}")
+        
+    except Exception as e:
+        workflow.status = PipelineStatus.FAILED
+        workflow.error = str(e)
+        workflow.completed_at = datetime.utcnow()
+        await sse_manager.emit_workflow_failed(project_id, str(e))
+        logger.error(f"Workflow failed for project {project_id}: {e}")
+
+
+def cancel_workflow(project_id: str) -> bool:
+    """Cancelar un workflow en ejecución"""
+    workflow = _active_workflows.get(project_id)
+    if not workflow:
+        return False
+    
+    if workflow.status != PipelineStatus.RUNNING:
+        return False
+    
+    workflow.status = PipelineStatus.FAILED
+    workflow.error = "Cancelled by user"
+    workflow.completed_at = datetime.utcnow()
+    
+    # Nota: No podemos cancelar fácilmente las tareas de asyncio en ejecución
+    # pero marcamos el estado como failed para que no continúe
+    
+    return True

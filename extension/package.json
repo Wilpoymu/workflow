@@ -1,0 +1,10 @@
+{
+  "name": "workflow-extension",
+  "description": "Chrome extension bridge for Google Flow image generation",
+  "type": "module",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "wxt": "^0.20.26"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Workflow Bridge",
+  "version": "1.0",
+  "description": "Bridge para generación de imágenes en Google Flow — Workflow",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": [
+    "https://labs.google/*",
+    "https://aisandbox-pa.googleapis.com/*",
+    "http://127.0.0.1:*/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://labs.google/fx/*/tools/flow*",
+        "https://labs.google/fx/tools/flow*"
+      ],
+      "js": ["bridge.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://labs.google/fx/*/tools/flow*",
+        "https://labs.google/fx/tools/flow*"
+      ],
+      "js": ["token-gen.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    }
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

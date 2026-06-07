@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-surface text-white;
+  }
+
+  body {
+    @apply font-body antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-sans font-semibold tracking-tight;
+  }
+
+  ::selection {
+    background-color: rgba(45, 212, 191, 0.25);
+    color: #ccfbf1;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #1e1e35;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2a2a45;
+  }
+}
+
+@layer components {
+  .nav-link {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+      text-gray-500 hover:text-gray-300 hover:bg-surface-hover
+      transition-all duration-200;
+  }
+
+  .nav-link-active {
+    @apply text-accent bg-accent/10 shadow-[inset_3px_0_0_#2dd4bf];
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg
+      bg-accent text-surface font-semibold text-sm
+      hover:bg-accent/90 active:bg-accent/80
+      transition-all duration-150;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg
+      border border-border text-gray-300 font-medium text-sm
+      hover:bg-surface-hover hover:text-white
+      transition-all duration-150;
+  }
+
+  .card {
+    @apply bg-surface-card border border-border rounded-xl p-5
+      transition-all duration-200;
+  }
+
+  .card-hover {
+    @apply card hover:border-accent/30 hover:shadow-[0_0_16px_rgba(45,212,191,0.06)];
+  }
+
+  .input {
+    @apply w-full px-3 py-2 rounded-lg bg-surface border border-border
+      text-white placeholder-gray-600 font-body text-sm
+      focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20
+      transition-all duration-150;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-accent via-accent-secondary to-studio-indigo;
+  }
+
+  .glow-teal {
+    box-shadow: 0 0 20px rgba(45, 212, 191, 0.15);
+  }
+
+  .glow-teal-sm {
+    box-shadow: 0 0 8px rgba(45, 212, 191, 0.1);
+  }
+}
