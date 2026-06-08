@@ -1,6 +1,6 @@
 import { createContext, useContext, useState } from "react"
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom"
-import { LayoutDashboard, FileEdit, Image, Mic, Video, Zap, Menu } from "lucide-react"
+import { LayoutDashboard, FileEdit, Image, Mic, Video, Zap, Scissors, Menu } from "lucide-react"
 import { ToastProvider } from "./components/Toast"
 import { useActiveProject } from "./hooks/useActiveProject"
 import Dashboard from "./pages/Dashboard"
@@ -9,6 +9,7 @@ import Images from "./pages/Images"
 import Transcribe from "./pages/Transcribe"
 import Render from "./pages/Render"
 import Workflow from "./pages/Workflow"
+import Shorts from "./pages/Shorts"
 import EmptyState from "./components/EmptyState"
 
 const ActiveProjectContext = createContext<{
@@ -44,6 +45,7 @@ const nav = [
   { to: "/transcribe", label: "Transcribe", icon: Mic },
   { to: "/render", label: "Render", icon: Video },
   { to: "/workflow", label: "Workflow", icon: Zap },
+  { to: "/shorts", label: "Shorts", icon: Scissors },
 ]
 
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -140,11 +142,13 @@ export default function App() {
               <Route path="/transcribe/:projectId" element={<Transcribe />} />
               <Route path="/render/:projectId" element={<Render />} />
               <Route path="/workflow/:projectId" element={<Workflow />} />
+              <Route path="/shorts/:projectId" element={<Shorts />} />
               <Route path="/editor" element={<NoProjectSelected page="Editor" icon={FileEdit} />} />
               <Route path="/images" element={<NoProjectSelected page="Images" icon={Image} />} />
               <Route path="/transcribe" element={<NoProjectSelected page="Transcribe" icon={Mic} />} />
               <Route path="/render" element={<NoProjectSelected page="Render" icon={Video} />} />
               <Route path="/workflow" element={<NoProjectSelected page="Workflow" icon={Zap} />} />
+              <Route path="/shorts" element={<NoProjectSelected page="Shorts" icon={Scissors} />} />
             </Routes>
           </Layout>
         </BrowserRouter>
