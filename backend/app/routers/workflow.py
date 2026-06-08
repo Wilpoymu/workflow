@@ -43,17 +43,23 @@ class WorkflowStateResponse(BaseModel):
 @router.post("")
 async def start_workflow(project_id: str, config: WorkflowConfig = WorkflowConfig()):
     """
-    Iniciar el pipeline completo: generate → transcribe → render
+    Iniciar el pipeline completo: prompts → generate → transcribe → render
     
-    Ejecuta las 3 etapas en secuencia:
-    1. Generate: Genera imágenes desde los prompts
-    2. Transcribe: Transcribe el audio con Whisper
-    3. Render: Genera video con Ken Burns
+    Ejecuta las 4 etapas en secuencia:
+    1. Prompts: Genera image_prompt para fragments via AI (Google/Groq/Ollama/OpenRouter)
+    2. Generate: Genera imágenes desde los prompts vía Forge
+    3. Transcribe: Transcribe el audio con Whisper
+    4. Render: Genera video con Ken Burns
     
     Retorna inmediatamente. Usa SSE para seguir el progreso.
     """
     try:
-        await orchestrator.start_workflow(project_id, config.render, concurrency=config.concurrency)
+        await orchestrator.start_workflow(
+            project_id,
+            config.render,
+            concurrency=config.concurrency,
+            accounts=config.accounts,
+        )
         return {"project_id": project_id, "status": "started"}
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -76,6 +82,7 @@ async def get_workflow_status(project_id: str):
             "status": PipelineStatus.IDLE,
             "current_stage": None,
             "stages": {
+                "prompts": {"status": PipelineStatus.IDLE, "progress": 0.0},
                 "generate": {"status": PipelineStatus.IDLE, "progress": 0.0},
                 "transcribe": {"status": PipelineStatus.IDLE, "progress": 0.0},
                 "render": {"status": PipelineStatus.IDLE, "progress": 0.0},
@@ -137,6 +144,9 @@ async def workflow_events(request: Request, project_id: str):
     - workflow_progress: Progreso de una etapa
     - workflow_complete: El workflow completo terminó
     - workflow_failed: El workflow completo falló
+    - prompt_batch_complete: Un batch de prompts se generó
+    - prompt_all_complete: Todos los prompts se generaron
+    - prompt_failed: Falló la generación de prompts
     """
     queue = sse_manager.subscribe(project_id)
     
@@ -147,7 +157,7 @@ async def workflow_events(request: Request, project_id: str):
                     break
                 try:
                     event_type, data = await asyncio.wait_for(queue.get(), timeout=30)
-                    if event_type.startswith("workflow_"):
+                    if event_type.startswith("workflow_") or event_type.startswith("prompt_"):
                         yield f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
                 except asyncio.TimeoutError:
                     yield ": keepalive\n\n"
