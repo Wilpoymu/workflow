@@ -36,6 +36,7 @@ class ProjectMetadata(BaseModel):
     files: ProjectFiles = ProjectFiles()
     stats: ProjectStats = ProjectStats()
     history: list[HistoryEntry] = []
+    prompt_style: str = "Cinematico"
 
 
 class ProjectCreate(BaseModel):

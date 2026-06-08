@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.core.job_store import init_db
 from app.routers import projects, fragments, channels, images, transcribe, render, workflow
+from app.routers.prompts import router as prompts_router
+from app.routers.shorts import router as shorts_router
 from app.routers.images import save_image
 from app.services import project_service
 from app.services.forge_bridge import bridge
@@ -45,6 +47,8 @@ app.include_router(images.router)
 app.include_router(transcribe.router)
 app.include_router(render.router)
 app.include_router(workflow.router)
+app.include_router(prompts_router)
+app.include_router(shorts_router)
 
 
 @app.get("/api/setup/status")

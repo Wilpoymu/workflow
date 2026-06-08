@@ -20,6 +20,25 @@ class Settings(BaseSettings):
 
     job_store_path: str = "jobs.sqlite"
 
+    # AI Providers for prompt generation
+    openrouter_api_key: str = ""
+    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    openrouter_fallback_models: str = "openai/gpt-oss-20b:free,google/gemma-4-31b-it:free,nvidia/nemotron-3-super-120b-a12b:free"
+
+    google_ai_api_key: str = ""
+    google_model: str = "gemini-2.0-flash"
+
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.1-8b-instant"
+    groq_batch_size: int = 8
+
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.2"
+
+    prompt_provider_order: str = "openrouter,google,ollama"
+    prompt_inter_fragment_delay_ms: int = 4200
+    prompt_batch_size: int = 5
+
     cors_origins: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
