@@ -225,4 +225,93 @@ export const api = {
 
   workflowEventsUrl: (projectId: string) =>
     `/api/projects/${projectId}/workflow/events`,
+
+  // Shorts
+  analyzeShorts: (projectId: string) =>
+    request<{
+      suggestions: Array<{
+        index: number
+        start_sec: number
+        end_sec: number
+        duration: number
+        score: number
+        reason: string
+        text_preview: string
+      }>
+    }>(`/api/projects/${projectId}/shorts/analyze`, { method: "POST" }),
+
+  renderShorts: (projectId: string, data: { selections: number[]; font_size?: number; with_subtitles?: boolean }) =>
+    request<{
+      results: Array<{
+        index: number
+        filename: string
+        success: boolean
+        error?: string | null
+      }>
+    }>(`/api/projects/${projectId}/shorts/render`, { method: "POST", body: JSON.stringify(data) }),
+
+  listShorts: (projectId: string) =>
+    request<{
+      files: Array<{ filename: string; size_bytes: number }>
+    }>(`/api/projects/${projectId}/shorts/downloads`),
+
+  shortsDownloadUrl: (projectId: string, filename: string) =>
+    `/api/projects/${projectId}/shorts/file/${filename}`,
+
+  // Script (full guion text)
+  getScript: (projectId: string) =>
+    request<{ text: string; project_id: string }>(
+      `/api/projects/${projectId}/script`,
+    ),
+
+  saveScript: (projectId: string, text: string) =>
+    request<{ project_id: string; path: string; saved: boolean }>(
+      `/api/projects/${projectId}/script`,
+      { method: "PUT", body: JSON.stringify({ text }) },
+    ),
+
+  fragmentScript: (projectId: string, text: string) =>
+    request<{ project_id: string; total: number; fragments: import("../types").Fragment[] }>(
+      `/api/projects/${projectId}/script/fragment`,
+      { method: "POST", body: JSON.stringify({ text }) },
+    ),
+
+  // Prompt Generation
+  generatePrompts: (projectId: string, style?: string) =>
+    request<{ project_id: string; total: number; results: Array<{ fragment_id: number; original_text: string; image_prompt: string }> }>(
+      `/api/projects/${projectId}/prompts/generate`,
+      { method: "POST", body: JSON.stringify({ style: style || "Cinematico" }) },
+    ),
+
+  setPromptStyle: (projectId: string, style: string) =>
+    request<{ project_id: string; style: string; saved: boolean }>(
+      `/api/projects/${projectId}/prompts/style`,
+      { method: "PUT", body: JSON.stringify({ style }) },
+    ),
+
+  promptEventsUrl: (projectId: string) => {
+    return `/api/projects/${projectId}/prompts/events`
+  },
+
+  // Orphaned project scanner
+  scanOrphans: () =>
+    request<{
+      orphans: Array<{
+        id: string
+        title: string
+        channel_id: string
+        channel_name: string
+        path: string
+        created: string
+        has_video: boolean
+        has_audio: boolean
+        has_images: boolean
+      }>
+    }>("/api/projects/scan", { method: "POST" }),
+
+  importOrphan: (projectId: string, channelId: string) =>
+    request<{ project_id: string; imported: boolean }>("/api/projects/import", {
+      method: "POST",
+      body: JSON.stringify({ project_id: projectId, channel_id: channelId }),
+    }),
 }
