@@ -61,5 +61,22 @@ class SSEEventManager:
     async def emit_workflow_failed(self, project_id: str, error: str):
         await self.emit(project_id, "workflow_failed", {"error": error})
 
+    # ═══════════════════════════════════════════════════════════════
+    # Prompt generation events
+    # ═══════════════════════════════════════════════════════════════
+
+    async def emit_prompt_batch_complete(self, project_id: str, batch_index: int, total_batches: int, fragment_ids: list[int]):
+        await self.emit(project_id, "prompt_batch_complete", {
+            "batchIndex": batch_index,
+            "totalBatches": total_batches,
+            "fragmentIds": fragment_ids,
+        })
+
+    async def emit_prompt_all_complete(self, project_id: str, total: int):
+        await self.emit(project_id, "prompt_all_complete", {"total": total})
+
+    async def emit_prompt_failed(self, project_id: str, error: str):
+        await self.emit(project_id, "prompt_failed", {"error": error})
+
 
 sse_manager = SSEEventManager()

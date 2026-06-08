@@ -293,8 +293,15 @@ async def get_transcription(project_id: str):
         raise HTTPException(404, "Project not found")
 
     audio_dir = Path(project.base_dir) / "audio"
+    root_dir = Path(project.base_dir)
+
+    # Check audio/ subdirectory first, then root (legacy projects)
     srt_path = audio_dir / "script.srt"
+    if not srt_path.exists():
+        srt_path = root_dir / "script.srt"
     json_path = audio_dir / "script.json"
+    if not json_path.exists():
+        json_path = root_dir / "script.json"
 
     if not json_path.exists():
         return {"has_transcription": False}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useParams } from "react-router-dom"
-import { Play, Square, CheckCircle, XCircle, Loader2, Image, Mic, Video, Folder, FileText, Clock, AlertTriangle } from "lucide-react"
+import { Play, Square, CheckCircle, XCircle, Loader2, Image, Mic, Video, Folder, FileText, Clock, AlertTriangle, Sparkles } from "lucide-react"
 import PageHeader from "../components/PageHeader"
 import Card from "../components/Card"
 import ProgressBar from "../components/ProgressBar"
@@ -11,7 +11,7 @@ import { api } from "../api/client"
 import { useActiveProjectContext } from "../App"
 import type { ProjectMetadata } from "../types"
 
-type StageKey = "generate" | "transcribe" | "render"
+type StageKey = "prompts" | "generate" | "transcribe" | "render"
 type StageStatus = "idle" | "running" | "completed" | "failed"
 
 interface StageState {
@@ -28,6 +28,7 @@ interface WorkflowState {
 }
 
 const STAGE_CONFIG: Record<StageKey, { label: string; icon: typeof Image; color: string }> = {
+  prompts: { label: "Generate Prompts", icon: Sparkles, color: "text-pink-400" },
   generate: { label: "Generate Images", icon: Image, color: "text-purple-400" },
   transcribe: { label: "Transcribe Audio", icon: Mic, color: "text-blue-400" },
   render: { label: "Render Video", icon: Video, color: "text-green-400" },
@@ -42,6 +43,7 @@ export default function Workflow() {
     status: "idle",
     currentStage: null,
     stages: {
+      prompts: { status: "idle", progress: 0, message: "" },
       generate: { status: "idle", progress: 0, message: "" },
       transcribe: { status: "idle", progress: 0, message: "" },
       render: { status: "idle", progress: 0, message: "" },
@@ -68,6 +70,11 @@ export default function Workflow() {
         status: res.status as WorkflowState["status"],
         currentStage: res.current_stage as StageKey | null,
         stages: {
+          prompts: {
+            status: (res.stages.prompts?.status || "idle") as StageStatus,
+            progress: res.stages.prompts?.progress || 0,
+            message: "",
+          },
           generate: {
             status: (res.stages.generate?.status || "idle") as StageStatus,
             progress: res.stages.generate?.progress || 0,
@@ -121,6 +128,7 @@ export default function Workflow() {
           status: res.status as WorkflowState["status"],
           currentStage: res.current_stage as StageKey | null,
           stages: {
+            prompts: { ...prev.stages.prompts, status: (res.stages.prompts?.status || prev.stages.prompts.status) as StageStatus, progress: res.stages.prompts?.progress ?? prev.stages.prompts.progress },
             generate: { ...prev.stages.generate, status: (res.stages.generate?.status || prev.stages.generate.status) as StageStatus, progress: res.stages.generate?.progress ?? prev.stages.generate.progress },
             transcribe: { ...prev.stages.transcribe, status: (res.stages.transcribe?.status || prev.stages.transcribe.status) as StageStatus, progress: res.stages.transcribe?.progress ?? prev.stages.transcribe.progress },
             render: { ...prev.stages.render, status: (res.stages.render?.status || prev.stages.render.status) as StageStatus, progress: res.stages.render?.progress ?? prev.stages.render.progress },
@@ -458,19 +466,23 @@ export default function Workflow() {
           <ol className="space-y-2 text-sm text-gray-400">
             <li className="flex gap-2">
               <span className="text-accent font-mono">1.</span>
-              <span><strong className="text-gray-300">Generate Images:</strong> Creates scene images from your prompts using the Forge bridge</span>
+              <span><strong className="text-gray-300">Generate Prompts:</strong> Creates AI image prompts from fragment text using OpenRouter/Google</span>
             </li>
             <li className="flex gap-2">
               <span className="text-accent font-mono">2.</span>
-              <span><strong className="text-gray-300">Transcribe Audio:</strong> Transcribes your audio file using Whisper with word timestamps</span>
+              <span><strong className="text-gray-300">Generate Images:</strong> Creates scene images from your prompts using the Forge bridge</span>
             </li>
             <li className="flex gap-2">
               <span className="text-accent font-mono">3.</span>
+              <span><strong className="text-gray-300">Transcribe Audio:</strong> Transcribes your audio file using Whisper with word timestamps</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-accent font-mono">4.</span>
               <span><strong className="text-gray-300">Render Video:</strong> Creates the final video with Ken Burns effect, synchronized to audio</span>
             </li>
           </ol>
           <p className="text-xs text-gray-600 mt-4">
-            Make sure you have prompts.json and an audio file in the audio/ folder before starting.
+            Make sure you have fragments (text split into 15-21 word segments) and an audio file in the audio/ folder before starting.
           </p>
         </Card>
       )}

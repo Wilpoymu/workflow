@@ -44,6 +44,7 @@ export interface ProjectMetadata {
     concurrency: number
     timestamp: string
   }>
+  prompt_style?: string
 }
 
 export interface Fragment {

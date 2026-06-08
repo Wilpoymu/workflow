@@ -1,6 +1,6 @@
 """
 Orchestrator service - Pipeline completo de un solo clic
-Ejecuta: generate images → transcribe audio → render video
+Ejecuta: generate prompts → generate images → transcribe audio → render video
 """
 import asyncio
 import logging
@@ -12,6 +12,7 @@ from datetime import datetime
 from app.services.forge_bridge import bridge
 from app.services.whisper_pipeline import transcribe_audio, save_transcription
 from app.services.kenburns import render_kenburns_video, KenBurnsConfig
+from app.services.prompt_generation import generate_prompts_for_project
 from app.services import project_service
 from app.core.sse import sse_manager
 
@@ -19,9 +20,12 @@ logger = logging.getLogger(__name__)
 
 
 class PipelineStage:
+    PROMPTS = "prompts"
     GENERATE = "generate"
     TRANSCRIBE = "transcribe"
     RENDER = "render"
+
+    ALL = (PROMPTS, GENERATE, TRANSCRIBE, RENDER)
 
 
 class PipelineStatus:
@@ -37,23 +41,17 @@ class WorkflowState:
         self.status = PipelineStatus.IDLE
         self.current_stage: Optional[str] = None
         self.stage_progress: dict[str, float] = {
-            PipelineStage.GENERATE: 0.0,
-            PipelineStage.TRANSCRIBE: 0.0,
-            PipelineStage.RENDER: 0.0,
+            stage: 0.0 for stage in PipelineStage.ALL
         }
         self.stage_status: dict[str, str] = {
-            PipelineStage.GENERATE: PipelineStatus.IDLE,
-            PipelineStage.TRANSCRIBE: PipelineStatus.IDLE,
-            PipelineStage.RENDER: PipelineStatus.IDLE,
+            stage: PipelineStatus.IDLE for stage in PipelineStage.ALL
         }
         self.error: Optional[str] = None
         self.started_at: Optional[datetime] = None
         self.completed_at: Optional[datetime] = None
         self.results: dict = {}
         self.stage_timings: dict[str, dict] = {
-            PipelineStage.GENERATE: {},
-            PipelineStage.TRANSCRIBE: {},
-            PipelineStage.RENDER: {},
+            stage: {} for stage in PipelineStage.ALL
         }
 
 
@@ -109,6 +107,57 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
             raise RuntimeError(f"Project {project_id} not found")
         
         project_path = Path(project.base_dir)
+
+        # ═══════════════════════════════════════════════════════════════
+        # STAGE 0: GENERATE PROMPTS (AI image prompts for fragments)
+        # ═══════════════════════════════════════════════════════════════
+        workflow.current_stage = PipelineStage.PROMPTS
+        workflow.stage_status[PipelineStage.PROMPTS] = PipelineStatus.RUNNING
+        workflow.stage_timings[PipelineStage.PROMPTS]["started_at"] = datetime.utcnow().isoformat()
+        await sse_manager.emit_workflow_stage_start(project_id, PipelineStage.PROMPTS)
+
+        try:
+            fragments = await project_service.list_fragments(project_id)
+            pending_prompts = [f for f in fragments if not f.image_prompt or not f.image_prompt.strip()]
+
+            if pending_prompts:
+                logger.info("[WORKFLOW] Generating prompts for %d fragments", len(pending_prompts))
+                # Read saved style from project metadata
+                style = (project.prompt_style
+                         if hasattr(project, "prompt_style") and project.prompt_style
+                         else "Cinematico")
+                async def _on_prompt_progress(p: float, msg: str):
+                    workflow.stage_progress[PipelineStage.PROMPTS] = p
+                    await sse_manager.emit_workflow_progress(
+                        project_id, PipelineStage.PROMPTS, p, msg,
+                    )
+
+                results = await generate_prompts_for_project(
+                    project_id, style=style,
+                    progress_callback=_on_prompt_progress,
+                )
+                workflow.results["prompts"] = {"total": len(results), "generated": len(results)}
+            else:
+                logger.info("[WORKFLOW] All fragments already have prompts, skipping")
+                workflow.results["prompts"] = {"total": 0, "generated": 0, "skipped": True}
+
+            workflow.stage_progress[PipelineStage.PROMPTS] = 1.0
+            workflow.stage_status[PipelineStage.PROMPTS] = PipelineStatus.COMPLETED
+            st = workflow.stage_timings[PipelineStage.PROMPTS]
+            st["completed_at"] = datetime.utcnow().isoformat()
+            st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
+            await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.PROMPTS)
+
+        except Exception as e:
+            workflow.stage_status[PipelineStage.PROMPTS] = PipelineStatus.FAILED
+            workflow.error = f"Prompts stage failed: {str(e)}"
+            st = workflow.stage_timings[PipelineStage.PROMPTS]
+            st["failed_at"] = datetime.utcnow().isoformat()
+            if "started_at" in st:
+                st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
+            await sse_manager.emit_workflow_stage_failed(project_id, PipelineStage.PROMPTS, str(e))
+            raise
+
         # ═══════════════════════════════════════════════════════════════
         # STAGE 1: GENERATE IMAGES
         # ═══════════════════════════════════════════════════════════════

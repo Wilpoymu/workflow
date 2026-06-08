@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   Plus, FolderOpen, Play, ArrowRight, LayoutGrid,
-  Image, Mic, Video, Zap, FileEdit
+  Image, Mic, Video, Zap, FileEdit, Search,
 } from "lucide-react"
 import PageHeader from "../components/PageHeader"
 import Card from "../components/Card"
@@ -45,6 +45,11 @@ export default function Dashboard() {
   const [newProjectTitle, setNewProjectTitle] = useState("")
   const [newChannelName, setNewChannelName] = useState("")
   const [newChannelPath, setNewChannelPath] = useState("")
+
+  // Orphan scanner
+  const [orphans, setOrphans] = useState<any[] | null>(null)
+  const [scanning, setScanning] = useState(false)
+  const [importing, setImporting] = useState<Set<string>>(new Set())
 
   const loadAll = async () => {
     try {
@@ -127,6 +132,32 @@ export default function Dashboard() {
       await loadAll()
     } catch {
       toast("Failed to create channel", "error")
+    }
+  }
+
+  const handleScanOrphans = async () => {
+    setScanning(true)
+    try {
+      const res = await api.scanOrphans()
+      setOrphans(res.orphans)
+    } catch {
+      toast("Failed to scan", "error")
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  const handleImportOrphan = async (projectId: string, channelId: string) => {
+    setImporting((prev) => new Set(prev).add(projectId))
+    try {
+      await api.importOrphan(projectId, channelId)
+      toast(`Imported ${projectId}`, "success")
+      setOrphans((prev) => prev?.filter((o) => o.id !== projectId) ?? null)
+      if (activeChannel) loadProjects(activeChannel)
+    } catch {
+      toast(`Failed to import ${projectId}`, "error")
+    } finally {
+      setImporting((prev) => { const next = new Set(prev); next.delete(projectId); return next })
     }
   }
 
@@ -283,6 +314,77 @@ export default function Dashboard() {
             })}
           </div>
         )}
+      </section>
+
+      {/* Orphaned Project Scanner */}
+      <section className="mt-10">
+        <details className="group">
+          <summary className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 font-sans hover:text-gray-400 transition-colors">
+            <Search className="w-3.5 h-3.5" />
+            Unindexed Projects
+            {orphans !== null && (
+              <span className="text-gray-600 font-mono normal-case">({orphans.length} found)</span>
+            )}
+          </summary>
+
+          {orphans === null && !scanning && (
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-surface-card border border-border">
+              <p className="text-xs text-gray-500 font-body flex-1">
+                There are project folders on disk that aren't in the database. Scan to find and import them.
+              </p>
+              <button className="btn-secondary text-xs" onClick={handleScanOrphans}>
+                <Search className="w-3 h-3" /> Scan
+              </button>
+            </div>
+          )}
+
+          {scanning && (
+            <div className="text-center py-6 text-xs text-gray-500">Scanning project folders...</div>
+          )}
+
+          {orphans !== null && orphans.length === 0 && !scanning && (
+            <div className="text-center py-6 text-xs text-gray-600">
+              No orphaned projects found. All projects are indexed.
+            </div>
+          )}
+
+          {orphans !== null && orphans.length > 0 && !scanning && (
+            <div className="space-y-2">
+              {orphans.map((o) => (
+                <div
+                  key={o.id}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-surface-card border border-border"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{o.title}</p>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-[11px] text-gray-600 font-mono">{o.id}</span>
+                      <span className={`text-[11px] ${o.has_video ? "text-green-400" : "text-gray-700"}`}>
+                        {o.has_video ? "video" : "no video"}
+                      </span>
+                      <span className={`text-[11px] ${o.has_audio ? "text-green-400" : "text-gray-700"}`}>
+                        {o.has_audio ? "audio" : "no audio"}
+                      </span>
+                      <span className={`text-[11px] ${o.has_images ? "text-green-400" : "text-gray-700"}`}>
+                        {o.has_images ? "images" : "no images"}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    className="btn-secondary text-xs"
+                    onClick={() => handleImportOrphan(o.id, o.channel_id)}
+                    disabled={importing.has(o.id)}
+                  >
+                    {importing.has(o.id) ? "Importing..." : "Import"}
+                  </button>
+                </div>
+              ))}
+              <button className="btn-secondary text-xs mt-2" onClick={handleScanOrphans}>
+                <Search className="w-3 h-3" /> Re-scan
+              </button>
+            </div>
+          )}
+        </details>
       </section>
 
       {/* Create Project Modal */}
