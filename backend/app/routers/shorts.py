@@ -1,7 +1,10 @@
+import json
+import tempfile
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from pathlib import Path
 
 from app.services import project_service
 from app.services.shorts_maker.analyzer import analyze_folder, find_video_in_folder
@@ -11,10 +14,22 @@ from app.services.shorts_maker.types import ClipSuggestion, RenderJob
 router = APIRouter(prefix="/api/projects/{project_id}/shorts", tags=["shorts"])
 
 
+class ManualClip(BaseModel):
+    index: int
+    start_sec: float
+    end_sec: float
+    duration: float
+    reason: str = "manual"
+    text_preview: str = ""
+    start_word_idx: int | None = None
+    end_word_idx: int | None = None
+
+
 class RenderRequest(BaseModel):
     selections: list[int]
     font_size: int = 52
     with_subtitles: bool = True
+    manual_clips: list[ManualClip] = []
 
 
 class AnalyzeResponse(BaseModel):
@@ -47,6 +62,59 @@ async def _resolve_project_dir(project_id: str) -> Path:
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return Path(project.base_dir)
+
+
+def _build_srt_from_words(project_dir: Path, start_idx: int, end_idx: int) -> Path | None:
+    """Build a temporary SRT file from word timestamps for precise subtitle tracking."""
+    for candidate in (project_dir / "audio" / "script.json", project_dir / "script.json"):
+        if candidate.exists():
+            break
+    else:
+        return None
+
+    data = json.loads(candidate.read_text(encoding="utf-8"))
+    if isinstance(data, list):
+        words = data[0].get("words", []) if data else []
+    else:
+        words = data.get("words", [])
+
+    word_entries = [w for w in words if w.get("type") == "word"]
+    selected = word_entries[start_idx:end_idx + 1]
+    if not selected:
+        return None
+
+    def _fmt_srt(sec: float) -> str:
+        h = int(sec // 3600)
+        m = int((sec % 3600) // 60)
+        s = int(sec % 60)
+        ms = int((sec - int(sec)) * 1000)
+        return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+    # Group into subtitle blocks of ~5 words each
+    blocks: list[list[dict]] = []
+    block_size = 5
+    for i in range(0, len(selected), block_size):
+        blocks.append(selected[i:i + block_size])
+
+    lines: list[str] = []
+    for bi, block in enumerate(blocks, 1):
+        text = " ".join(w["text"] for w in block)
+        start = block[0]["start"]
+        end = block[-1]["end"]
+        lines.append(str(bi))
+        lines.append(f"{_fmt_srt(start)} --> {_fmt_srt(end)}")
+        lines.append(text)
+        lines.append("")
+
+    temp = tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=f"_{start_idx}_{end_idx}.srt",
+        delete=False,
+        encoding="utf-8",
+    )
+    temp.write("\n".join(lines))
+    temp.close()
+    return Path(temp.name)
 
 
 @router.post("/analyze")
@@ -133,8 +201,33 @@ async def render_shorts(project_id: str, body: RenderRequest) -> RenderResponse:
     shorts_dir.mkdir(parents=True, exist_ok=True)
 
     results: list[RenderResult] = []
+    custom_srt_files: list[Path] = []
+    manual_by_idx = {c.index: c for c in body.manual_clips}
     for idx in body.selections:
-        if idx < 0 or idx >= len(suggestions):
+        # Check if it's a manual clip first
+        if idx in manual_by_idx:
+            mc = manual_by_idx[idx]
+
+            # Build custom SRT from word timestamps if word indices provided
+            custom_srt = None
+            if mc.start_word_idx is not None and mc.end_word_idx is not None:
+                custom_srt = _build_srt_from_words(project_dir, mc.start_word_idx, mc.end_word_idx)
+                if custom_srt:
+                    custom_srt_files.append(custom_srt)
+
+            s = ClipSuggestion(
+                start_sec=mc.start_sec,
+                end_sec=mc.end_sec,
+                score=10.0,
+                reason=mc.reason,
+                text_preview=mc.text_preview,
+            )
+            # Override srt for this clip
+            if custom_srt:
+                srt_path = custom_srt
+        elif idx >= 0 and idx < len(suggestions):
+            s = suggestions[idx]
+        else:
             results.append(
                 RenderResult(
                     index=idx,
@@ -144,8 +237,6 @@ async def render_shorts(project_id: str, body: RenderRequest) -> RenderResponse:
                 )
             )
             continue
-
-        s = suggestions[idx]
         out_name = f"{project_id}_short_{idx:02d}.mp4"
         out_path = shorts_dir / out_name
 
@@ -171,6 +262,13 @@ async def render_shorts(project_id: str, body: RenderRequest) -> RenderResponse:
                     error=str(e),
                 )
             )
+
+    # Clean up custom SRT files created for manual clips
+    for f in custom_srt_files:
+        try:
+            f.unlink(missing_ok=True)
+        except OSError:
+            pass
 
     return RenderResponse(results=results)
 

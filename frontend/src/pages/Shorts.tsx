@@ -10,12 +10,14 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronUp,
+  BookText,
 } from "lucide-react"
 import PageHeader from "../components/PageHeader"
 import Card from "../components/Card"
 import ProgressBar from "../components/ProgressBar"
 import VideoPlayer from "../components/VideoPlayer"
 import EmptyState from "../components/EmptyState"
+import ScriptSelector from "../components/ScriptSelector"
 import { useToast } from "../components/Toast"
 import { api } from "../api/client"
 import { useActiveProjectContext } from "../App"
@@ -49,6 +51,7 @@ const reasonColors: Record<string, string> = {
   "tema-clave": "bg-sky-500/15 text-sky-400 border-sky-500/20",
   "frase-poderosa": "bg-amber-500/15 text-amber-400 border-amber-500/20",
   signo: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
+  manual: "bg-pink-500/15 text-pink-400 border-pink-500/20",
 }
 
 const reasonLabels: Record<string, string> = {
@@ -56,6 +59,7 @@ const reasonLabels: Record<string, string> = {
   "tema-clave": "Tema Clave",
   "frase-poderosa": "Frase Poderosa",
   signo: "Signo",
+  manual: "Manual",
 }
 
 function formatTime(sec: number): string {
@@ -86,6 +90,7 @@ export default function Shorts() {
   // Analysis
   const [videoName, setVideoName] = useState("")
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [showScriptSelector, setShowScriptSelector] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
   // Settings
@@ -188,11 +193,28 @@ export default function Shorts() {
     setProgressMessage("Starting render...")
     setRenderResults([])
 
+    // Separate manual clips from auto-suggestions
+    const manualClips = suggestions
+      .filter((s): s is Suggestion & { start_word_idx: number; end_word_idx: number } =>
+        s.reason === "manual" && typeof (s as any).start_word_idx === "number"
+      )
+      .map((s) => ({
+        index: s.index,
+        start_sec: s.start_sec,
+        end_sec: s.end_sec,
+        duration: s.duration,
+        reason: "manual",
+        text_preview: s.text_preview,
+        start_word_idx: s.start_word_idx,
+        end_word_idx: s.end_word_idx,
+      }))
+
     try {
       const res = await api.renderShorts(projectId, {
         selections: Array.from(selected),
         font_size: fontSize,
         with_subtitles: withSubtitles,
+        manual_clips: manualClips,
       })
       setRenderResults(res.results)
 
@@ -240,6 +262,26 @@ export default function Shorts() {
   const selectedCount = selected.size
   const segmentedCount = suggestions.length
 
+  const handleScriptSelect = (startSec: number, endSec: number, text: string, startWordIdx: number, endWordIdx: number) => {
+    const idx = suggestions.length > 0 ? Math.max(...suggestions.map((s) => s.index)) + 1 : 0
+    const duration = endSec - startSec
+    const manualSuggestion: Suggestion & { start_word_idx?: number; end_word_idx?: number } = {
+      index: idx,
+      start_sec: startSec,
+      end_sec: endSec,
+      duration,
+      score: 10,
+      reason: "manual",
+      text_preview: text,
+      start_word_idx: startWordIdx,
+      end_word_idx: endWordIdx,
+    }
+    setSuggestions((prev) => [...prev, manualSuggestion])
+    setSelected((prev) => new Set(prev).add(idx))
+    setStatus("ready")
+    toast(`Added manual segment (${formatTime(startSec)} → ${formatTime(endSec)}, ${Math.round(duration)}s)`, "success")
+  }
+
   if (!projectId) {
     return (
       <EmptyState
@@ -263,18 +305,28 @@ export default function Shorts() {
               Complete
             </span>
           ) : status === "idle" || status === "analyzing" || status === "ready" ? (
-            <button
-              className="btn-primary"
-              onClick={handleAnalyze}
-              disabled={status === "analyzing"}
-            >
-              {status === "analyzing" ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Scissors className="w-4 h-4" />
-              )}
-              {status === "analyzing" ? "Analyzing..." : "Analyze Segments"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                className="btn-secondary"
+                onClick={() => setShowScriptSelector(true)}
+                disabled={status === "analyzing"}
+              >
+                <BookText className="w-4 h-4" />
+                Manual Selection
+              </button>
+              <button
+                className="btn-primary"
+                onClick={handleAnalyze}
+                disabled={status === "analyzing"}
+              >
+                {status === "analyzing" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Scissors className="w-4 h-4" />
+                )}
+                {status === "analyzing" ? "Analyzing..." : "Analyze Segments"}
+              </button>
+            </div>
           ) : undefined
         }
       />
@@ -624,6 +676,15 @@ export default function Shorts() {
           </Card>
         </div>
       </div>
+
+      {/* Script Selection Modal */}
+      {showScriptSelector && projectId && (
+        <ScriptSelector
+          projectId={projectId}
+          onSelect={handleScriptSelect}
+          onClose={() => setShowScriptSelector(false)}
+        />
+      )}
     </div>
   )
 }
