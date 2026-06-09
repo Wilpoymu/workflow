@@ -156,6 +156,12 @@ export const api = {
     return `${proto}//${window.location.host}/api/projects/${projectId}/transcribe/ws`
   },
 
+  // Word timestamps for script selection
+  getWordTimestamps: (projectId: string) =>
+    request<{ words: Array<{ text: string; start: number; end: number; type: string }>; total: number }>(
+      `/api/projects/${projectId}/transcribe/words`,
+    ),
+
   // Render
   startRender: (projectId: string, config?: {
     filter_mode?: "all" | "even" | "odd"
@@ -240,7 +246,7 @@ export const api = {
       }>
     }>(`/api/projects/${projectId}/shorts/analyze`, { method: "POST" }),
 
-  renderShorts: (projectId: string, data: { selections: number[]; font_size?: number; with_subtitles?: boolean }) =>
+  renderShorts: (projectId: string, data: { selections: number[]; font_size?: number; with_subtitles?: boolean; manual_clips?: Array<{index: number; start_sec: number; end_sec: number; duration: number; reason: string; text_preview: string}> }) =>
     request<{
       results: Array<{
         index: number
