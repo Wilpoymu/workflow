@@ -286,6 +286,31 @@ async def get_media_info(project_id: str):
     }
 
 
+@router.get("/words")
+async def get_word_timestamps(project_id: str):
+    """Return word-level timestamps from script.json for precise text selection."""
+    project = await project_service.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    audio_dir = Path(project.base_dir) / "audio"
+    root_dir = Path(project.base_dir)
+    json_path = audio_dir / "script.json"
+    if not json_path.exists():
+        json_path = root_dir / "script.json"
+    if not json_path.exists():
+        raise HTTPException(404, "No word timestamps found")
+
+    import json as json_module
+    data = json_module.loads(json_path.read_text(encoding="utf-8"))
+    if isinstance(data, list):
+        words = data[0].get("words", []) if data else []
+    else:
+        words = data.get("words", [])
+
+    return {"words": words, "total": len(words)}
+
+
 @router.get("")
 async def get_transcription(project_id: str):
     project = await project_service.get_project(project_id)
