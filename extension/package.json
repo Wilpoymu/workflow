@@ -1,9 +1,15 @@
 {
   "name": "workflow-extension",
-  "description": "Chrome extension bridge for Google Flow image generation",
+  "description": "Chrome extension bridge for Workflow (Flow + Gemini Web)",
   "type": "module",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "postinstall": "wxt build"
+  },
   "dependencies": {
     "wxt": "^0.20.26"
   }
