@@ -384,7 +384,6 @@ export default function Images() {
                     if (!projectId) return
                     try {
                       await api.deleteReference(projectId, ref.name)
-                      setRefMediaIds([])
                       loadReferences()
                       toast("Reference removed", "success")
                     } catch {

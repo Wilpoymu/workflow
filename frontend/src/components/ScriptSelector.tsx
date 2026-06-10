@@ -190,40 +190,40 @@ export default function ScriptSelector({ projectId, onSelect, onClose }: ScriptS
         </div>
       ) : (
         <>
-          {/* Selection info bar */}
+          {/* Selection info bar — fixed height to prevent DOM shifting */}
           {selection && (
-            <div className="px-6 py-3 bg-surface-card border-b border-border shrink-0">
-              <div className="flex items-center gap-4 text-xs">
-                <div className="flex items-center gap-1.5 text-gray-400">
-                  <Clock className="w-3 h-3" />
-                  <span className="font-mono">{fmtTime(startSec)}</span>
-                  <span className="text-gray-600">→</span>
-                  <span className="font-mono">{fmtTime(endSec)}</span>
+            <div className="h-[185px] shrink-0 bg-surface-card border-b border-border overflow-y-auto">
+              <div className="px-6 py-3">
+                <div className="flex items-center gap-4 text-xs">
+                  <div className="flex items-center gap-1.5 text-gray-400">
+                    <Clock className="w-3 h-3" />
+                    <span className="font-mono">{fmtTime(startSec)}</span>
+                    <span className="text-gray-600">→</span>
+                    <span className="font-mono">{fmtTime(endSec)}</span>
+                  </div>
+                  <div className="h-4 w-px bg-border" />
+                  <span className={`font-mono font-semibold ${overMax ? "text-red-400" : "text-accent"}`}>
+                    {fmtDuration(duration)}
+                  </span>
+                  <div className="h-4 w-px bg-border" />
+                  <span className="text-gray-500 font-mono">{selectedWords.length} words</span>
+                  {overMax && (
+                    <>
+                      <div className="h-4 w-px bg-border" />
+                      <span className="text-red-400/80 text-[11px] flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" /> Exceeds {maxDuration}s
+                      </span>
+                    </>
+                  )}
                 </div>
-                <div className="h-4 w-px bg-border" />
-                <span className={`font-mono font-semibold ${overMax ? "text-red-400" : "text-accent"}`}>
-                  {fmtDuration(duration)}
-                </span>
-                <div className="h-4 w-px bg-border" />
-                <span className="text-gray-500 font-mono">{selectedWords.length} words</span>
-                {overMax && (
-                  <>
-                    <div className="h-4 w-px bg-border" />
-                    <span className="text-red-400/80 text-[11px] flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" /> Exceeds {maxDuration}s
-                    </span>
-                  </>
-                )}
-              </div>
-              <div className="mt-2 h-1.5 bg-surface-hover rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-150 ${overMax ? "bg-red-500" : "bg-accent"}`}
-                  style={{ width: `${Math.min(100, (duration / maxDuration) * 100)}%` }}
-                />
-              </div>
+                <div className="mt-2 h-1.5 bg-surface-hover rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-150 ${overMax ? "bg-red-500" : "bg-accent"}`}
+                    style={{ width: `${Math.min(100, (duration / maxDuration) * 100)}%` }}
+                  />
+                </div>
 
-              {/* Selected text preview */}
-              {selectedWords.length > 0 && (
+                {/* Selected text preview — fixed internal height */}
                 <div className="mt-3 p-3 bg-surface-hover rounded-lg border border-border/50">
                   <p className="text-xs text-gray-500 font-sans font-semibold mb-1.5 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400/60" />
@@ -232,11 +232,13 @@ export default function ScriptSelector({ projectId, onSelect, onClose }: ScriptS
                       {selectedWords.length} words · {selectedWords.join(" ").length} chars
                     </span>
                   </p>
-                  <p className="text-sm text-gray-300 leading-relaxed font-sans max-h-24 overflow-y-auto">
-                    {selectedWords.map((w) => w.text).join(" ")}
-                  </p>
+                  <div className="max-h-[60px] overflow-y-auto">
+                    <p className="text-sm text-gray-300 leading-relaxed font-sans">
+                      {selectedWords.map((w) => w.text).join(" ")}
+                    </p>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
 
