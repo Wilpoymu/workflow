@@ -30,22 +30,29 @@ echo.
 :: ── Frontend installation ───────────────────
 echo [FRONTEND] Checking dependencies...
 
-:: Detect package manager: bun > npm
-set "PM=notfound"
-where bun >nul 2>nul
-if %ERRORLEVEL% equ 0 (
-    set "PM=bun"
-) else (
-    where npm >nul 2>nul
-    if %ERRORLEVEL% equ 0 (
-        set "PM=npm"
-    )
-)
-
-if "%PM%"=="notfound" (
-    echo [ERROR] Neither bun nor npm found. Install Node.js first.
+:: Check Node.js
+node --version >nul 2>nul
+if %ERRORLEVEL% neq 0 (
+    echo [ERROR] Node.js is not installed. Install it from https://nodejs.org
     pause
     exit /b 1
+)
+
+:: Detect package manager: bun > npm
+set "PM=npm"
+bun --version >nul 2>nul
+if %ERRORLEVEL% equ 0 (
+    set "PM=bun"
+    echo [FRONTEND] Using bun
+) else (
+    npm --version >nul 2>nul
+    if %ERRORLEVEL% equ 0 (
+        echo [FRONTEND] Using npm
+    ) else (
+        echo [ERROR] npm not found even though Node.js is installed.
+        pause
+        exit /b 1
+    )
 )
 
 echo [FRONTEND] Using %PM%
@@ -76,7 +83,7 @@ cd /d "%~dp0extension"
 if "%PM%"=="bun" (
     bun run build >nul 2>&1
 ) else (
-    npx wxt build >nul 2>&1
+    call npx --yes wxt build >nul 2>&1
 )
 if exist ".output\chrome-mv3\manifest.json" (
     echo [EXTENSION] Build OK ^(.output\chrome-mv3^)

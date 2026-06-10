@@ -10,12 +10,19 @@ echo.
 
 :: Detect package manager
 set "PM=npm"
-where bun >nul 2>nul
+bun --version >nul 2>nul
 if %ERRORLEVEL% equ 0 (
     set "PM=bun"
     echo [OK] Using bun
 ) else (
-    echo [OK] Using npm
+    npm --version >nul 2>nul
+    if %ERRORLEVEL% equ 0 (
+        echo [OK] Using npm
+    ) else (
+        echo [ERROR] npm not found.
+        pause
+        exit /b 1
+    )
 )
 echo.
 
