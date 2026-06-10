@@ -8,22 +8,15 @@ echo   Building Chrome Extension
 echo ========================================
 echo.
 
-:: Detect package manager
-set "PM=npm"
-bun --version >nul 2>nul
-if %ERRORLEVEL% equ 0 (
-    set "PM=bun"
-    echo [OK] Using bun
-) else (
-    npm --version >nul 2>nul
-    if %ERRORLEVEL% equ 0 (
-        echo [OK] Using npm
-    ) else (
-        echo [ERROR] npm not found.
-        pause
-        exit /b 1
-    )
+:: Detect package manager (via Python for cross-platform reliability)
+for /f "tokens=*" %%i in ('python "%~dp0backend\setup_frontend.py" --detect 2^>nul') do set "PM=%%i"
+if not defined PM (
+    :: Fallback: try bun then npm directly
+    set "PM=npm"
+    bun --version >nul 2>nul
+    if %ERRORLEVEL% equ 0 set "PM=bun"
 )
+echo [OK] Using %PM%
 echo.
 
 :: Install deps if needed
