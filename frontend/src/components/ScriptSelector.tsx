@@ -67,6 +67,7 @@ function buildParagraphs(words: Word[]): Paragraph[] {
 
 export default function ScriptSelector({ projectId, onSelect, onClose }: ScriptSelectorProps) {
   const [words, setWords] = useState<Word[]>([])
+  const [scriptText, setScriptText] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selection, setSelection] = useState<SelectionRange | null>(null)
@@ -76,13 +77,38 @@ export default function ScriptSelector({ projectId, onSelect, onClose }: ScriptS
   const [maxDuration] = useState(90)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const paragraphs = useMemo(() => buildParagraphs(words), [words])
+  // Build paragraphs from text.txt structure (split by \n\n), fall back to time-gap heuristic
+  const paragraphs = useMemo(() => {
+    if (!scriptText) return buildParagraphs(words)
+    const paraTexts = scriptText.split(/\n\n+/).filter((p) => p.trim())
+    const result: Paragraph[] = []
+    let wordIdx = 0
+    for (const para of paraTexts) {
+      const paraWordCount = para.split(/\s+/).filter((w) => w.trim()).length
+      if (paraWordCount === 0) continue
+      const startIdx = wordIdx
+      wordIdx += paraWordCount
+      const endIdx = Math.min(wordIdx - 1, words.length - 1)
+      if (startIdx <= endIdx && startIdx < words.length) {
+        result.push({ startIdx, endIdx })
+      }
+    }
+    // Fallback: if result doesn't cover all words, use time-gap method
+    if (result.length === 0 || result[result.length - 1].endIdx < words.length - 10) {
+      return buildParagraphs(words)
+    }
+    return result
+  }, [scriptText, words])
 
   useEffect(() => {
     setLoading(true)
-    api.getWordTimestamps(projectId)
-      .then((res) => {
-        setWords(res.words.filter((w) => w.type === "word"))
+    Promise.all([
+      api.getWordTimestamps(projectId),
+      api.getScript(projectId).catch(() => null),
+    ])
+      .then(([wordRes, scriptRes]) => {
+        setWords(wordRes.words.filter((w) => w.type === "word"))
+        if (scriptRes?.text) setScriptText(scriptRes.text)
       })
       .catch((err) => setError(err?.message ?? "Failed to load word timestamps"))
       .finally(() => setLoading(false))
@@ -162,7 +188,7 @@ export default function ScriptSelector({ projectId, onSelect, onClose }: ScriptS
           <div>
             <h2 className="text-sm font-semibold text-white font-sans">Script Editor</h2>
             <p className="text-[11px] text-gray-600 font-mono">
-              {loading ? "Loading..." : `${words.length} words · ${paragraphs.length} paragraphs`}
+              {loading ? "Loading..." : `${words.length} words · ${paragraphs.length} paragraphs${scriptText ? " (from text)" : ""}`}
             </p>
           </div>
         </div>
