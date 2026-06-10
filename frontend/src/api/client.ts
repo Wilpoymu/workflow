@@ -73,10 +73,31 @@ export const api = {
       `/api/accounts`
     ),
 
-  generateImages: (projectId: string, config?: { concurrency?: number; accounts?: string[] }) =>
-    request<{ batch_id: string; total: number }>(
+  generateImages: (projectId: string, config?: { concurrency?: number; accounts?: string[]; reference_image_ids?: string[] }) =>
+    request<{ batch_id: string; total: number; reference_image_ids: string[] }>(
       `/api/projects/${projectId}/images/generate`,
       { method: "POST", body: JSON.stringify(config || {}) },
+    ),
+
+  // Reference Images
+  uploadReference: (projectId: string, file: File) => {
+    const form = new FormData()
+    form.append("file", file)
+    return request<{ ok: boolean; filename: string; size_kb: number }>(
+      `/api/projects/${projectId}/images/reference`,
+      { method: "POST", body: form, headers: {} },
+    )
+  },
+
+  listReferences: (projectId: string) =>
+    request<{ references: Array<{ name: string; url: string; size_kb: number }> }>(
+      `/api/projects/${projectId}/images/reference`,
+    ),
+
+  deleteReference: (projectId: string, filename: string) =>
+    request<{ ok: boolean; deleted: string }>(
+      `/api/projects/${projectId}/images/reference/${encodeURIComponent(filename)}`,
+      { method: "DELETE" },
     ),
 
   imageEventsUrl: (projectId: string) => `/api/projects/${projectId}/images/events`,
@@ -283,10 +304,10 @@ export const api = {
     ),
 
   // Prompt Generation
-  generatePrompts: (projectId: string, style?: string) =>
+  generatePrompts: (projectId: string, style?: string, useGeminiWeb?: boolean) =>
     request<{ project_id: string; total: number; results: Array<{ fragment_id: number; original_text: string; image_prompt: string }> }>(
       `/api/projects/${projectId}/prompts/generate`,
-      { method: "POST", body: JSON.stringify({ style: style || "Cinematico" }) },
+      { method: "POST", body: JSON.stringify({ style: style || "Cinematico", use_gemini_web: useGeminiWeb ?? true }) },
     ),
 
   setPromptStyle: (projectId: string, style: string) =>
@@ -298,6 +319,39 @@ export const api = {
   promptEventsUrl: (projectId: string) => {
     return `/api/projects/${projectId}/prompts/events`
   },
+
+  // Gemini Web Bridge
+  getGeminiBridgeStatus: () =>
+    request<{
+      ok: boolean
+      total_profiles: number
+      authenticated: number
+      profiles: Array<{
+        profile_id: string
+        profile_label: string
+        has_psid: boolean
+        has_active_tab: boolean
+        updated_at: string
+        auth_status: string
+      }>
+      selected: { profile_id: string | null; profile_label: string | null } | null
+    }>("/api/bridge/gemini/status"),
+
+  // Gems
+  listGems: () =>
+    request<{
+      gems: Array<{ name: string; type: string; preview: string }>
+      total: number
+    }>("/api/gems"),
+
+  getGem: (name: string) =>
+    request<{ name: string; type: string; value: string }>(`/api/gems/${encodeURIComponent(name)}`),
+
+  updateGem: (name: string, data: { name?: string; type?: string; value?: string }) =>
+    request<{ ok: boolean; name: string }>(`/api/gems/${encodeURIComponent(name)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // Orphaned project scanner
   scanOrphans: () =>

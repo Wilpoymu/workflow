@@ -37,6 +37,7 @@ class ProjectMetadata(BaseModel):
     stats: ProjectStats = ProjectStats()
     history: list[HistoryEntry] = []
     prompt_style: str = "Cinematico"
+    reference_media_ids: list[str] = []
 
 
 class ProjectCreate(BaseModel):

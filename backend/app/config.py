@@ -35,7 +35,12 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2"
 
-    prompt_provider_order: str = "openrouter,google,ollama"
+    # Gemini Web (cookie-based, no API key)
+    gemini_web_enabled: bool = True
+    gemini_web_max_retries: int = 3
+    gemini_web_batch_size: int = 10
+
+    prompt_provider_order: str = "openrouter,google,ollama,groq,gemini-web"
     prompt_inter_fragment_delay_ms: int = 4200
     prompt_batch_size: int = 5
 
