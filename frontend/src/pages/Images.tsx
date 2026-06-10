@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { useParams } from "react-router-dom"
-import { Image as ImageIcon, Sparkles, RefreshCw, Loader2, Users, Zap, CheckCircle, XCircle } from "lucide-react"
+import { Image as ImageIcon, Sparkles, RefreshCw, Loader2, Users, Zap, CheckCircle, XCircle, Upload, Trash2 } from "lucide-react"
 import PageHeader from "../components/PageHeader"
 import Card from "../components/Card"
 import Badge from "../components/Badge"
@@ -44,6 +44,10 @@ export default function Images() {
   const [stats, setStats] = useState({ done: 0, failed: 0, total: 0 })
   const esRef = useRef<EventSource | null>(null)
 
+  // Reference images
+  const [references, setReferences] = useState<Array<{ name: string; url: string; size_kb: number }>>([])
+  const [refUploading, setRefUploading] = useState(false)
+
   useEffect(() => {
     if (projectId) setActiveProject(projectId)
   }, [projectId, setActiveProject])
@@ -67,6 +71,14 @@ export default function Images() {
     }
   }, [projectId, toast])
 
+  const loadReferences = useCallback(async () => {
+    if (!projectId) return
+    try {
+      const res = await api.listReferences(projectId)
+      setReferences(res.references)
+    } catch { /* may not exist yet */ }
+  }, [projectId])
+
   const loadAccounts = useCallback(async () => {
     try {
       const res = await api.listAccounts()
@@ -89,13 +101,14 @@ export default function Images() {
   useEffect(() => {
     loadImages()
     loadAccounts()
+    loadReferences()
     // Poll accounts every 5 seconds
     const interval = setInterval(loadAccounts, 5000)
     return () => {
       clearInterval(interval)
       esRef.current?.close()
     }
-  }, [loadImages, loadAccounts])
+  }, [loadImages, loadAccounts, loadReferences])
 
   const subscribeSSE = () => {
     if (!projectId) return
@@ -300,6 +313,94 @@ export default function Images() {
             <p className="text-xs text-gray-600 mt-2">
               {connectedAccounts.length} account{connectedAccounts.length > 1 ? "s" : ""} × {concurrency} prompts each = up to {connectedAccounts.length * concurrency} total in parallel
             </p>
+          </div>
+        )}
+      </Card>
+
+      {/* Reference Image Section */}
+      <Card className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Upload className="w-4 h-4 text-pink-400" />
+            <h3 className="text-sm font-semibold text-white font-sans">
+              Character Reference
+            </h3>
+          </div>
+          <input
+            type="file"
+            id="refUpload"
+            accept=".png,.jpg,.jpeg,.webp"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              if (!file || !projectId) return
+              if (file.size > 5 * 1024 * 1024) {
+                toast("Image exceeds 5MB", "error")
+                return
+              }
+              setRefUploading(true)
+              try {
+                const res = await api.uploadReference(projectId, file)
+                toast(`Reference uploaded (${res.size_kb} KB)`, "success")
+                loadReferences()
+              } catch (err: any) {
+                toast(err?.message ?? "Upload failed", "error")
+              }
+              setRefUploading(false)
+            }}
+          />
+          <button
+            className="btn-secondary text-xs"
+            onClick={() => document.getElementById("refUpload")?.click()}
+            disabled={refUploading}
+          >
+            {refUploading ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Upload className="w-3 h-3" />
+            )}
+            {refUploading ? "Uploading..." : "Upload Reference"}
+          </button>
+        </div>
+
+        {references.length === 0 ? (
+          <p className="text-xs text-gray-600">
+            No reference image set. Upload a character image to maintain visual consistency across all scenes.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {references.map((ref) => (
+              <div key={ref.name} className="relative group">
+                <div className="aspect-square rounded-lg overflow-hidden border border-border bg-surface-elevated">
+                  <img
+                    src={ref.url}
+                    alt={ref.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <button
+                  className="absolute top-1 right-1 p-1 rounded bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300"
+                  onClick={async () => {
+                    if (!projectId) return
+                    try {
+                      await api.deleteReference(projectId, ref.name)
+                      setRefMediaIds([])
+                      loadReferences()
+                      toast("Reference removed", "success")
+                    } catch {
+                      toast("Failed to delete reference", "error")
+                    }
+                  }}
+                  title="Remove reference"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+                <p className="text-[10px] text-gray-600 truncate mt-1 text-center">
+                  {ref.name} 
+                  <span className="text-gray-700"> ({ref.size_kb} KB)</span>
+                </p>
+              </div>
+            ))}
           </div>
         )}
       </Card>

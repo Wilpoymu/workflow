@@ -191,6 +191,30 @@ async def save_project_style(project_id: str, style: str) -> None:
     pj.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+async def update_project_meta(project_id: str, updates: dict) -> None:
+    """Update arbitrary fields in project.json (merge)."""
+    db = await get_db()
+    try:
+        cursor = await db.execute("SELECT path FROM projects WHERE id = ?", (project_id,))
+        row = await cursor.fetchone()
+        if not row:
+            return
+        path = row["path"]
+    finally:
+        await db.close()
+
+    pj = Path(path) / "project.json"
+    if not pj.exists():
+        return
+    data = json.loads(pj.read_text(encoding="utf-8"))
+    for key, value in updates.items():
+        if isinstance(value, dict) and isinstance(data.get(key), dict):
+            data[key].update(value)
+        else:
+            data[key] = value
+    pj.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 async def delete_project(name: str) -> bool:
     db = await get_db()
     try:

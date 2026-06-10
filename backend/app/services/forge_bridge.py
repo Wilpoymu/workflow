@@ -6,6 +6,7 @@ import time
 import uuid
 from typing import Awaitable, Callable
 
+import httpx
 import websockets
 from websockets.asyncio.server import ServerConnection
 
@@ -16,22 +17,27 @@ logger = logging.getLogger(__name__)
 SaveImageFn = Callable[[str, int, dict], Awaitable[None]]
 
 
+FLOW_UPLOAD_URL = "https://aisandbox-pa.googleapis.com/v1/flow/uploadImage"
+
+
 class ForgeBridge:
     def __init__(self):
         self.accounts: dict[str, ServerConnection] = {}
         self._account_emails: dict[str, str] = {}
+        self._account_tokens: dict[str, str] = {}       # account_hash -> bearer token
         self._pending: list[dict] = []
         self._server = None
         self._save_image: SaveImageFn | None = None
         self._batch_results: dict[str, dict] = {}
         self._pending_chunks: dict[str, list[list]] = {}
         self._batch_events: dict[str, asyncio.Event] = {}
+        self._reference_media_ids: dict[str, list[str]] = {}  # project_id -> [media_id, ...]
 
     def set_save_image(self, fn: SaveImageFn):
         self._save_image = fn
 
     def get_accounts(self) -> list[dict]:
-        return [
+        accounts = [
             {
                 "hash": h,
                 "email": self._account_emails.get(h, f"Account {h[:8]}"),
@@ -39,9 +45,54 @@ class ForgeBridge:
             }
             for h in self.accounts.keys()
         ]
+        logger.info("[ACCOUNTS] get_accounts: %d accounts | hashes: %s", len(accounts), [a["hash"][:12] for a in accounts])
+        for a in accounts:
+            logger.info("[ACCOUNTS]   %s: %s (connected=%s)", a["hash"][:12], a["email"], a["connected"])
+        return accounts
 
     def register_account_email(self, account_hash: str, email: str):
         self._account_emails[account_hash] = email
+
+    def register_account_token(self, account_hash: str, token: str):
+        """Store bearer token for an account (received from Chrome extension auto-auth)."""
+        if token:
+            self._account_tokens[account_hash] = token
+            logger.info("[BRIDGE] Token stored for account %s", account_hash[:12])
+
+    def get_account_token(self, account_hash: str) -> str | None:
+        return self._account_tokens.get(account_hash)
+
+    def get_reference_media_ids(self, project_id: str) -> list[str]:
+        return self._reference_media_ids.get(project_id, [])
+
+    async def _upload_reference_direct(self, image_bytes_b64: str, bearer_token: str) -> str | None:
+        """Upload reference image directly to Flow API using bearer token (like FlowForge-v2)."""
+        headers = {
+            "Authorization": f"Bearer {bearer_token}",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "clientContext": {"tool": "PINHOLE"},
+            "imageBytes": image_bytes_b64,
+            "isUserUploaded": True,
+            "fileName": "reference.png",
+            "mimeType": "image/png",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(FLOW_UPLOAD_URL, headers=headers, json=body)
+                if resp.status_code != 200:
+                    logger.warning("[REF] Direct upload failed: HTTP %d", resp.status_code)
+                    return None
+                data = resp.json()
+                name = data.get("media", {}).get("name")
+                if name:
+                    return name
+                logger.warning("[REF] Direct upload: no media name in response")
+                return None
+        except Exception as e:
+            logger.warning("[REF] Direct upload error: %s", e)
+            return None
 
     async def serve(self, host: str = "127.0.0.1", port: int = 8766):
         self._server = await websockets.serve(self._handler, host, port)
@@ -62,15 +113,58 @@ class ForgeBridge:
         model: str = "NARWHAL",
         concurrency: int = 2,
         selected_accounts: list[str] | None = None,
+        reference_image_ids: list[str] | None = None,
+        reference_image_bytes: list[str] | None = None,
     ) -> int:
+        # Upload reference images to Flow BEFORE generation (via Python, like FlowForge-v2)
+        all_ref_ids = list(reference_image_ids or [])
+        if reference_image_bytes and self.accounts:
+            logger.info("[DISPATCH] Uploading %d reference images to Flow...", len(reference_image_bytes))
+            for acc_hash in self.accounts:
+                token = self.get_account_token(acc_hash)
+                if not token:
+                    logger.warning("[DISPATCH] No token for account %s, skipping ref upload", acc_hash[:12])
+                    continue
+                for b64_img in reference_image_bytes:
+                    media_id = await self._upload_reference_direct(b64_img, token)
+                    if media_id:
+                        all_ref_ids.append(media_id)
+                        logger.info("[DISPATCH] Reference uploaded: %s (via %s)", media_id[:12], acc_hash[:12])
+            if all_ref_ids:
+                self._reference_media_ids[project_id] = all_ref_ids
+                logger.info("[DISPATCH] All references ready: %s", all_ref_ids)
+
         flow_project_id = uuid.uuid4().hex
         base_url = f"https://aisandbox-pa.googleapis.com/v1/projects/{flow_project_id}/flowMedia:batchGenerateImages"
         session_id = f";{int(time.time() * 1000)}"
+
+        # Build imageInputs if reference images are available
+        image_inputs = None
+        if all_ref_ids:
+            image_inputs = [
+                {"imageInputType": "IMAGE_INPUT_TYPE_REFERENCE", "name": ref_id}
+                for ref_id in all_ref_ids
+            ]
 
         requests = []
         for f in fragments:
             if not f.image_prompt.strip():
                 continue
+            req = {
+                "clientContext": {
+                    "projectId": flow_project_id,
+                    "tool": "PINHOLE",
+                    "sessionId": session_id,
+                },
+                "imageModelName": model,
+                "imageAspectRatio": "IMAGE_ASPECT_RATIO_LANDSCAPE",
+                "structuredPrompt": {
+                    "parts": [{"text": f.image_prompt}],
+                },
+                "seed": random.randint(1, 999999),
+            }
+            if image_inputs:
+                req["imageInputs"] = image_inputs
             body = {
                 "clientContext": {
                     "projectId": flow_project_id,
@@ -81,21 +175,7 @@ class ForgeBridge:
                     "batchId": batch_id,
                 },
                 "useNewMedia": True,
-                "requests": [
-                    {
-                        "clientContext": {
-                            "projectId": flow_project_id,
-                            "tool": "PINHOLE",
-                            "sessionId": session_id,
-                        },
-                        "imageModelName": model,
-                        "imageAspectRatio": "IMAGE_ASPECT_RATIO_LANDSCAPE",
-                        "structuredPrompt": {
-                            "parts": [{"text": f.image_prompt}],
-                        },
-                        "seed": random.randint(1, 999999),
-                    }
-                ],
+                "requests": [req],
             }
             requests.append({
                 "requestId": str(f.fragment_id),
@@ -125,18 +205,26 @@ class ForgeBridge:
         }
         self._batch_results[batch_id] = state
 
+        logger.info("[DISPATCH] accounts pool: %d | selected_accounts: %s",
+                     len(self.accounts), selected_accounts)
+        for h in self.accounts:
+            logger.info("[DISPATCH]   account: %s (email: %s)", h[:12], self._account_emails.get(h, "?"))
+
         if not self.accounts:
             self._pending.append(state)
-            logger.info("No accounts connected, batch %s queued", batch_id)
+            logger.info("[DISPATCH] No accounts connected, batch %s queued", batch_id)
             return len(requests)
 
         available = list(self.accounts.items())
+        logger.info("[DISPATCH] available before filter: %d", len(available))
         if selected_accounts:
             available = [(h, ws) for h, ws in available if h in selected_accounts]
+            logger.info("[DISPATCH] after selected_accounts filter: %d (selected: %s)",
+                        len(available), selected_accounts)
 
         if not available:
             self._pending.append(state)
-            logger.info("No selected accounts available, batch %s queued", batch_id)
+            logger.info("[DISPATCH] No selected accounts available, batch %s queued", batch_id)
             return len(requests)
 
         # Create concurrency-sized chunks (prompts per account per round)
@@ -214,20 +302,29 @@ class ForgeBridge:
                 t = msg.get("type")
                 if t == "register":
                     account_hash = msg["account"]
+                    old_count = len(self.accounts)
                     self.accounts[account_hash] = ws
                     if "email" in msg:
                         self._account_emails[account_hash] = msg["email"]
-                    logger.info("Account registered: %s (email: %s)", account_hash[:12], msg.get("email", "N/A"))
+                    logger.info("[ACCOUNTS] Registered: %s (email: %s) | total accounts: %d (was %d) | hashes: %s",
+                                account_hash[:12], msg.get("email", "N/A"),
+                                len(self.accounts), old_count,
+                                list(self.accounts.keys()))
                     await self._flush_pending(ws, account_hash)
                 elif t == "result":
                     logger.info("[BRIDGE] Result received: batch=%s results=%d from=%s", msg.get("batchId"), len(msg.get("results", [])), (account_hash or "?")[:12])
                     await self._handle_result(msg.get("batchId"), msg.get("results", []), account_hash)
+                else:
+                    logger.info("[WS] Unknown message type: %s from %s", t, (account_hash or "?")[:12])
         except websockets.exceptions.ConnectionClosed:
-            pass
+            logger.info("[WS] Connection closed: %s", (account_hash or "?")[:12] if account_hash else "anonymous")
+        except Exception as e:
+            logger.error("[WS] Handler error: %s", e)
         finally:
             if account_hash and account_hash in self.accounts:
                 del self.accounts[account_hash]
-                logger.info("Account disconnected: %s", account_hash[:12])
+                logger.info("[ACCOUNTS] Disconnected: %s | remaining: %d | hashes: %s",
+                            account_hash[:12], len(self.accounts), list(self.accounts.keys()))
 
     async def _flush_pending(self, ws: ServerConnection, account_hash: str):
         if not self._pending:

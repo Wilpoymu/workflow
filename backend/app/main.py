@@ -77,9 +77,11 @@ class AuthAutoRequest(BaseModel):
 
 @app.post("/api/auth/auto")
 async def auth_auto(req: AuthAutoRequest):
-    """Register account from Chrome extension auto-auth"""
+    """Register account from Chrome extension auto-auth (includes bearer token)"""
     if req.email:
         bridge.register_account_email(req.account, req.email)
+    if req.token:
+        bridge.register_account_token(req.account, req.token)
     return {"status": "ok", "account": req.account}
 
 

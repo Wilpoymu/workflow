@@ -1,5 +1,5 @@
 export default defineContentScript({
-  matches: ["https://labs.google/fx/tools/flow*"],
+  matches: ["https://labs.google/fx/*/tools/flow*", "https://labs.google/fx/tools/flow*"],
   world: "ISOLATED",
   main() {
     const BRIDGE_WS = "ws://127.0.0.1:8766"
@@ -57,22 +57,17 @@ export default defineContentScript({
         }
       }
 
-      if (event.data.type === "FLOW_AUTH_RESULT") {
-        const { account, token, email } = event.data
-        accountHash = account
+      // The static token-gen.js sends FLOW_ACCOUNT_HASH (not FLOW_AUTH_RESULT).
+      // token-gen handles /api/auth/auto directly; we just need the hash for WS registration.
+      if (event.data.type === "FLOW_ACCOUNT_HASH") {
+        const { hash, email } = event.data
+        accountHash = hash
         accountEmail = email || null
-
-        fetch("http://127.0.0.1:8000/api/auth/auto", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ account, token, email }),
-        }).catch(console.error)
-
         if (ws?.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: "register",
             account: accountHash,
-            email: email || undefined,
+            email: accountEmail || undefined,
           }))
         }
       }

@@ -198,6 +198,11 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
                 total = len(pending)
                 batch_id = uuid.uuid4().hex[:8]
 
+                # Load reference media IDs from project.json
+                ref_ids = getattr(project, "reference_media_ids", None)
+                if not ref_ids:
+                    ref_ids = bridge.get_reference_media_ids(project_id)
+
                 sent = await bridge.dispatch(
                     project_id,
                     str(project_path),
@@ -205,6 +210,7 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
                     batch_id,
                     concurrency=concurrency,
                     selected_accounts=accounts,
+                    reference_image_ids=ref_ids,
                 )
 
                 if sent == 0:

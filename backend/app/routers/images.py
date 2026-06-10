@@ -23,6 +23,13 @@ router = APIRouter(prefix="/api/projects/{project_id}/images", tags=["images"])
 class GenerateRequest(BaseModel):
     concurrency: int = 2
     accounts: list[str] | None = None
+    reference_image_ids: list[str] | None = None
+
+
+class ReferenceInfo(BaseModel):
+    name: str
+    url: str
+    size_kb: float
 
 
 async def save_image(project_id: str, fragment_id: int, data: dict):
@@ -87,13 +94,16 @@ async def list_images(project_id: str):
             ))
 
     fragments = await project_service.list_fragments(project_id)
-    existing = {img.fragment_id for img in images}
+    existing_ids = {img.fragment_id for img in images}
     for f in fragments:
-        if f.fragment_id not in existing and f.image_prompt.strip():
+        if not f.image_prompt.strip():
+            continue
+        if f.fragment_id not in existing_ids:
+            # File doesn't exist → report as pending regardless of fragment status
             images.append(ImageInfo(
                 fragment_id=f.fragment_id,
                 url="",
-                status=f.status if f.status else "pending",
+                status="pending",
             ))
 
     return {"images": sorted(images, key=lambda x: x.fragment_id)}
@@ -145,6 +155,15 @@ async def generate_images(project_id: str, config: GenerateRequest = GenerateReq
     if not pending:
         return {"batch_id": "", "total": 0, "message": "All fragments already have images"}
 
+    # Load reference images from disk as base64 to upload via extension
+    ref_b64_list: list[str] = []
+    personaje_dir = Path(project.base_dir) / "personaje"
+    if personaje_dir.exists():
+        for ref_file in sorted(personaje_dir.glob("*.png")):
+            raw = ref_file.read_bytes()
+            if len(raw) <= 5 * 1024 * 1024:  # 5MB limit
+                ref_b64_list.append(base64.b64encode(raw).decode("ascii"))
+
     batch_id = uuid.uuid4().hex[:8]
     total = await bridge.dispatch(
         project_id,
@@ -153,9 +172,99 @@ async def generate_images(project_id: str, config: GenerateRequest = GenerateReq
         batch_id,
         concurrency=config.concurrency,
         selected_accounts=config.accounts,
+        reference_image_ids=config.reference_image_ids,
+        reference_image_bytes=ref_b64_list if ref_b64_list else None,
     )
 
-    return {"batch_id": batch_id, "total": total}
+    return {"batch_id": batch_id, "total": total, "personaje_images": len(ref_b64_list)}
+
+
+# ── Reference Images ─────────────────────────────────────
+
+@router.post("/reference")
+async def upload_reference_image(project_id: str, request: Request):
+    """Upload a reference image for a project (character consistency).
+
+    Saves to project/personaje/ for later upload via extension during generation.
+    """
+    project = await project_service.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    personaje_dir = Path(project.base_dir) / "personaje"
+    personaje_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        form = await request.form()
+        file = form.get("file")
+        if file and hasattr(file, "read"):
+            raw_bytes = await file.read()
+        else:
+            raise HTTPException(400, "No file provided. Send a multipart file field named 'file'.")
+    except Exception:
+        raise HTTPException(400, "No file provided. Send a multipart file field named 'file'.")
+
+    if not raw_bytes or len(raw_bytes) == 0:
+        raise HTTPException(400, "Empty file")
+    if len(raw_bytes) > 5 * 1024 * 1024:
+        raise HTTPException(400, "File too large (max 5MB)")
+
+    safe_name = f"ref_{uuid.uuid4().hex[:8]}.png"
+    local_path = personaje_dir / safe_name
+    local_path.write_bytes(raw_bytes)
+
+    await project_service.update_project_meta(project_id, {
+        "files": {"personaje": [safe_name]},
+    })
+
+    return {
+        "ok": True,
+        "filename": safe_name,
+        "size_kb": round(len(raw_bytes) / 1024, 1),
+    }
+
+
+@router.get("/reference")
+async def list_references(project_id: str):
+    """List reference images for a project."""
+    project = await project_service.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    personaje_dir = Path(project.base_dir) / "personaje"
+    refs: list[ReferenceInfo] = []
+    if personaje_dir.exists():
+        for p in sorted(personaje_dir.glob("*.png")):
+            refs.append(ReferenceInfo(
+                name=p.name,
+                url=f"/api/projects/{project_id}/images/reference/file/{p.name}",
+                size_kb=round(p.stat().st_size / 1024, 1),
+            ))
+    return {"references": refs}
+
+
+@router.get("/reference/file/{filename}")
+async def get_reference_file(project_id: str, filename: str):
+    """Serve a reference image file."""
+    project = await project_service.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    path = Path(project.base_dir) / "personaje" / filename
+    if not path.exists():
+        raise HTTPException(404, "Reference not found")
+    return FileResponse(str(path), media_type="image/png")
+
+
+@router.delete("/reference/{filename}")
+async def delete_reference(project_id: str, filename: str):
+    """Delete a reference image."""
+    project = await project_service.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    path = Path(project.base_dir) / "personaje" / filename
+    if path.exists():
+        path.unlink()
+    return {"ok": True, "deleted": filename}
 
 
 @router.get("/events")

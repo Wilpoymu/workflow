@@ -13,10 +13,11 @@ export default defineConfig({
     ],
     host_permissions: [
       "https://labs.google/*",
+      "https://aisandbox-pa.googleapis.com/*",
       "https://gemini.google.com/*",
       "https://google.com/*",
       "https://www.google.com/*",
-      "http://127.0.0.1:8000/*",
+      "http://127.0.0.1:*/*",
     ],
     background: {
       service_worker: "gemini-bridge.js",

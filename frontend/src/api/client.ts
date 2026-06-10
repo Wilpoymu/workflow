@@ -73,10 +73,31 @@ export const api = {
       `/api/accounts`
     ),
 
-  generateImages: (projectId: string, config?: { concurrency?: number; accounts?: string[] }) =>
-    request<{ batch_id: string; total: number }>(
+  generateImages: (projectId: string, config?: { concurrency?: number; accounts?: string[]; reference_image_ids?: string[] }) =>
+    request<{ batch_id: string; total: number; reference_image_ids: string[] }>(
       `/api/projects/${projectId}/images/generate`,
       { method: "POST", body: JSON.stringify(config || {}) },
+    ),
+
+  // Reference Images
+  uploadReference: (projectId: string, file: File) => {
+    const form = new FormData()
+    form.append("file", file)
+    return request<{ ok: boolean; filename: string; size_kb: number }>(
+      `/api/projects/${projectId}/images/reference`,
+      { method: "POST", body: form, headers: {} },
+    )
+  },
+
+  listReferences: (projectId: string) =>
+    request<{ references: Array<{ name: string; url: string; size_kb: number }> }>(
+      `/api/projects/${projectId}/images/reference`,
+    ),
+
+  deleteReference: (projectId: string, filename: string) =>
+    request<{ ok: boolean; deleted: string }>(
+      `/api/projects/${projectId}/images/reference/${encodeURIComponent(filename)}`,
+      { method: "DELETE" },
     ),
 
   imageEventsUrl: (projectId: string) => `/api/projects/${projectId}/images/events`,
