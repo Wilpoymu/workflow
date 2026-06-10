@@ -200,6 +200,15 @@ async def render_shorts(project_id: str, body: RenderRequest) -> RenderResponse:
     shorts_dir = project_dir / "shorts"
     shorts_dir.mkdir(parents=True, exist_ok=True)
 
+    # Clean up leftover temp files from previous renders (.srt, .ass)
+    # Keep .mp4 files intact
+    for f in shorts_dir.iterdir():
+        if f.suffix.lower() in (".srt", ".ass") and f.is_file():
+            try:
+                f.unlink()
+            except OSError:
+                pass
+
     results: list[RenderResult] = []
     custom_srt_files: list[Path] = []
     manual_by_idx = {c.index: c for c in body.manual_clips}

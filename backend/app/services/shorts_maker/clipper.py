@@ -164,51 +164,53 @@ def _render_with_subtitles(job: RenderJob) -> Path:
     from app.services.shorts_maker.subtitler import create_subtitle_ass, extract_srt_segment
 
     temp_srt = job.output_path.with_suffix(".segment.srt")
-    extract_srt_segment(
-        job.srt_path,  # type: ignore[arg-type]
-        temp_srt,
-        job.suggestion.start_sec,
-        job.suggestion.end_sec,
-    )
-
     ass_path = job.output_path.with_suffix(".ass")
-    create_subtitle_ass(
-        temp_srt,
-        ass_path,
-        video_width=job.width,
-        video_height=job.height,
-    )
 
-    duration = job.suggestion.end_sec - job.suggestion.start_sec
-    x_center = "iw/2"
-    crop_width = f"ih*{job.width}/{job.height}"
+    try:
+        extract_srt_segment(
+            job.srt_path,  # type: ignore[arg-type]
+            temp_srt,
+            job.suggestion.start_sec,
+            job.suggestion.end_sec,
+        )
 
-    escaped_ass = str(ass_path).replace("\\", "/").replace(":", "\\:")
+        create_subtitle_ass(
+            temp_srt,
+            ass_path,
+            video_width=job.width,
+            video_height=job.height,
+        )
 
-    vf = (
-        f"crop={crop_width}:ih:{x_center}-({crop_width})/2:0,"
-        f"scale={job.width}:{job.height}:flags=lanczos,"
-        f"ass='{escaped_ass}'"
-    )
+        duration = job.suggestion.end_sec - job.suggestion.start_sec
+        x_center = "iw/2"
+        crop_width = f"ih*{job.width}/{job.height}"
 
-    _run_ffmpeg(
-        [
-            "-ss", str(job.suggestion.start_sec),
-            "-i", str(job.video_path),
-            "-t", str(duration),
-            "-vf", vf,
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "22",
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-avoid_negative_ts", "make_zero",
-            str(job.output_path),
-        ],
-        "render with subtitles",
-    )
+        escaped_ass = str(ass_path).replace("\\", "/").replace(":", "\\:")
 
-    temp_srt.unlink(missing_ok=True)
-    ass_path.unlink(missing_ok=True)
+        vf = (
+            f"crop={crop_width}:ih:{x_center}-({crop_width})/2:0,"
+            f"scale={job.width}:{job.height}:flags=lanczos,"
+            f"ass='{escaped_ass}'"
+        )
 
-    return job.output_path
+        _run_ffmpeg(
+            [
+                "-ss", str(job.suggestion.start_sec),
+                "-i", str(job.video_path),
+                "-t", str(duration),
+                "-vf", vf,
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "22",
+                "-c:a", "aac",
+                "-b:a", "128k",
+                "-avoid_negative_ts", "make_zero",
+                str(job.output_path),
+            ],
+            "render with subtitles",
+        )
+
+        return job.output_path
+    finally:
+        temp_srt.unlink(missing_ok=True)
+        ass_path.unlink(missing_ok=True)
