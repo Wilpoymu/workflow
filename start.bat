@@ -1,5 +1,6 @@
 @echo off
 title Workflow Services
+setlocal
 
 cd /d "%~dp0"
 
@@ -8,18 +9,16 @@ echo   Workflow — Starting Services
 echo ========================================
 echo.
 
-:: ── Backend installation ────────────────────
+:: ── Backend ────────────────────────────────
 echo [BACKEND] Checking Python dependencies...
 cd /d "%~dp0backend"
-
-python -c "import fastapi, uvicorn, pydantic, httpx, curl_cffi" 2>nul
+python -c "import fastapi,uvicorn,httpx,curl_cffi" 2>nul
 if %ERRORLEVEL% neq 0 (
     echo [BACKEND] Installing dependencies...
     pip install -r requirements.txt
     if %ERRORLEVEL% neq 0 (
         echo [ERROR] Failed to install backend dependencies.
-        pause
-        exit /b 1
+        pause & exit /b 1
     )
     echo [BACKEND] Installation complete.
 ) else (
@@ -27,57 +26,20 @@ if %ERRORLEVEL% neq 0 (
 )
 echo.
 
-:: ── Frontend installation ───────────────────
-echo [FRONTEND] Checking dependencies...
-
-:: Check Node.js
-node --version >nul 2>nul
+:: ── Frontend (uses Python for cross-platform detection) ──
+echo [FRONTEND] Setting up...
+python "%~dp0backend\setup_frontend.py"
 if %ERRORLEVEL% neq 0 (
-    echo [ERROR] Node.js is not installed. Install it from https://nodejs.org
-    pause
-    exit /b 1
+    pause & exit /b 1
 )
+echo.
 
-:: Detect package manager: bun > npm
+:: Detect PM for the dev server (re-run here so batch knows)
 set "PM=npm"
 bun --version >nul 2>nul
-if %ERRORLEVEL% equ 0 (
-    set "PM=bun"
-    echo [FRONTEND] Using bun
-) else (
-    npm --version >nul 2>nul
-    if %ERRORLEVEL% equ 0 (
-        echo [FRONTEND] Using npm
-    ) else (
-        echo [ERROR] npm not found even though Node.js is installed.
-        pause
-        exit /b 1
-    )
-)
+if %ERRORLEVEL% equ 0 set "PM=bun"
 
-echo [FRONTEND] Using %PM%
-
-cd /d "%~dp0frontend"
-
-if not exist "node_modules" (
-    echo [FRONTEND] Installing dependencies...
-    if "%PM%"=="bun" (
-        bun install
-    ) else (
-        npm install
-    )
-    if %ERRORLEVEL% neq 0 (
-        echo [ERROR] Failed to install frontend dependencies.
-        pause
-        exit /b 1
-    )
-    echo [FRONTEND] Installation complete.
-) else (
-    echo [FRONTEND] Dependencies OK.
-)
-
-:: Build extension
-echo.
+:: ── Build extension ────────────────────────
 echo [EXTENSION] Building Chrome extension...
 cd /d "%~dp0extension"
 if "%PM%"=="bun" (
@@ -88,7 +50,7 @@ if "%PM%"=="bun" (
 if exist ".output\chrome-mv3\manifest.json" (
     echo [EXTENSION] Build OK ^(.output\chrome-mv3^)
 ) else (
-    echo [EXTENSION] Build skipped (not critical)
+    echo [EXTENSION] Build skipped
 )
 echo.
 
@@ -111,8 +73,6 @@ echo   Backend:  http://localhost:8000
 echo   Frontend: http://localhost:5173
 echo ========================================
 echo.
-
-:: Open browser after a short delay (let services start)
 echo Opening browser...
 timeout /t 3 /nobreak >nul
 start http://localhost:5173
