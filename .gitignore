@@ -48,7 +48,7 @@ backend/.env
 PLAN.md
 MIGRATION_PLAN.md
 skills-lock.json
-start.bat
+# start.bat — tracked, service launcher
 .playwright-mcp/
 
 # ── Docs (third-party, not source) ─────────────────────
