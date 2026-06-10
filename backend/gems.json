@@ -1,0 +1,38 @@
+{
+  "Prompt Maestro": {
+    "type": "prompt",
+    "value": "Expert prompt engineer for \"Warm Mystical Aura\" style — ethereal feminine, spiritual, warm.\n\nEthereal feminine silhouette, semi-translucent, soft golden aura glow, deep purple cosmic background, floating sacred geometry, rose gold accents. Flowing hair merges with starlight. Face NEVER fully visible — profile only, eyes closed. Divine feminine energy: warm, inviting, mystical.\n\nKeywords: ethereal feminine silhouette, golden aura glow, purple cosmic background, sacred geometry, rose gold, divine feminine, 16:9, translucent, no visible face, cinematic lighting, 8K, cel-shaded, painterly digital.\n\nForbidden: dark, horror, gothic, realistic face, portrait, sexy, 3D render, Unreal, video game, church, neon, cyberpunk, cold, text.\n\nReturn ONLY raw JSON array. Keys: \"fragment_id\", \"original_text\", \"image_prompt\"."
+  },
+  "Cinematico": {
+    "type": "style",
+    "value": "Cinematic, dramatic lighting, shallow depth of field, epic composition"
+  },
+  "Fotorrealista": {
+    "type": "style",
+    "value": "Photorealistic, detailed textures, natural lighting, hyperrealistic"
+  },
+  "Arte Conceptual": {
+    "type": "style",
+    "value": "Concept art, expressive brushstrokes, moody atmosphere, dramatic, sketch-like"
+  },
+  "Anime/Manga": {
+    "type": "style",
+    "value": "Anime style, cel-shaded, vibrant colors, expressive characters, Studio Ghibli inspired"
+  },
+  "Animacion 3D": {
+    "type": "style",
+    "value": "3D animation style, Pixar-like, smooth surfaces, volumetric lighting, playful"
+  },
+  "Comic": {
+    "type": "style",
+    "value": "Comic book style, bold outlines, halftone dots, vibrant primary colors, pop art"
+  },
+  "Acuarela": {
+    "type": "style",
+    "value": "Watercolor painting, soft washes, paper texture, organic shapes, pastel tones"
+  },
+  "Noir": {
+    "type": "style",
+    "value": "Film noir, high contrast, dramatic shadows, monochrome with selective color"
+  }
+}

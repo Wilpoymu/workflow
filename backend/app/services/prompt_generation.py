@@ -1,7 +1,7 @@
 """AI-powered image prompt generation from script fragments.
 
 Adapted from scripting-tool's /api/prompts/generate route.
-Supports Google Gemini, Ollama, Groq, and OpenRouter with fallback chain.
+Supports Google Gemini, Ollama, Groq, OpenRouter, and Gemini Web (cookie-based).
 """
 
 import json
@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from app.config import settings
+from app.services.gemini_web_provider import request_gemini_web_batch
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -266,8 +267,47 @@ def parse_model_json(
             except (json.JSONDecodeError, ValueError) as e:
                 errors.append(str(e))
 
+    # Strategy 5: Try numbered format (N. [prompt] or N. prompt)
+    # Used when the model follows a non-JSON format (e.g., Prompt Maestro)
+    expected_ids = {f["id"] for f in expected}
+    numbered_results = _parse_numbered_format(trimmed, expected_ids)
+    if numbered_results:
+        logger.info("Fallback to numbered format parsing: got %d/%d results",
+                     len(numbered_results), len(expected))
+        return [
+            {
+                "fragment_id": fid,
+                "original_text": next(
+                    (f["text"] for f in expected if f["id"] == fid), ""
+                ),
+                "image_prompt": prompt,
+            }
+            for fid, prompt in sorted(numbered_results.items())
+        ]
+
     logger.error("JSON parse failed. Raw (first 1000): %s", trimmed[:1000])
     raise ValueError("Model returned invalid JSON. Try a shorter fragment or retry.")
+
+
+def _parse_numbered_format(text: str, expected_ids: set[int]) -> dict[int, str]:
+    """Parse N. [prompt] or N. prompt or N: prompt format.
+
+    Returns dict of fragment_id -> prompt text.
+    """
+    pattern = re.compile(r"^\s*(\d+)[.\):]\s*(.+?)$", re.MULTILINE)
+    results: dict[int, str] = {}
+    for m in pattern.finditer(text.strip()):
+        fid = int(m.group(1))
+        if fid in expected_ids:
+            content = m.group(2).strip()
+            # Clean markdown fences
+            content = re.sub(r"^\s*```[a-zA-Z0-9_-]*\s*", "", content)
+            content = re.sub(r"\s*```\s*$", "", content)
+            content = content.replace("```", "").replace("`", "")
+            content = re.sub(r"\n{3,}", "\n", content).strip()
+            if content:
+                results[fid] = content
+    return results
 
 
 # ─── Provider Implementations ─────────────────────────────
@@ -544,6 +584,13 @@ def _build_providers() -> list[ProviderEntry]:
             "request": request_openrouter_batch,
             "max_retries": 0,
         },
+        "gemini-web": {
+            "id": "gemini-web",
+            "name": "Gemini Web",
+            "enabled": settings.gemini_web_enabled,
+            "request": request_gemini_web_batch,
+            "max_retries": 0,  # Retries handled internally
+        },
     }
 
     order = [s.strip().lower() for s in settings.prompt_provider_order.split(",") if s.strip()]
@@ -627,6 +674,7 @@ async def generate_prompts_for_project(
     style: str = "Cinematico",
     fragment_ids: list[int] | None = None,
     progress_callback: Callable[[float, str], None] | None = None,
+    use_gemini_web: bool = True,
 ) -> list[PromptResult]:
     """Generate image prompts for all pending fragments of a project.
 
@@ -639,6 +687,7 @@ async def generate_prompts_for_project(
     from app.services.project_service import _resolve_prompts_path
     from app.core.job_store import get_db
     from app.core.sse import sse_manager
+    from app.services.gems_manager import build_system_prompt_from_gem
 
     db = await get_db()
     try:
@@ -668,8 +717,12 @@ async def generate_prompts_for_project(
     if not target:
         raise ValueError("No pending fragments to generate prompts for.")
 
-    system_prompt = build_system_prompt(style)
+    # If style matches a gem, resolve it properly (type="prompt" uses value directly)
+    system_prompt = build_system_prompt_from_gem(style, style_fallback=style)
     providers = _build_providers()
+    # Allow user to disable Gemini Web from the UI
+    if not use_gemini_web:
+        providers = [p for p in providers if p["id"] != "gemini-web"]
     if not providers:
         raise ValueError(
             "No AI providers configured. Set OPENROUTER_API_KEY, GOOGLE_AI_API_KEY, "
@@ -746,6 +799,8 @@ async def generate_prompts_for_project(
         json.dumps(fragments, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
+    # Emit final "all complete" event so the frontend stops the progress bar
+    await sse_manager.emit_prompt_all_complete(project_id, len(results))
     logger.info("Generated %d prompts successfully", len(results))
     return results
 
