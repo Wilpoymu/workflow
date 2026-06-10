@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { Image as ImageIcon, FileText, Save, ChevronDown, ChevronRight, Loader2, Hash, AlignLeft, TextQuote, Layers, MessageSquareText, Clock, Scissors, Sparkles } from "lucide-react"
+import { Image as ImageIcon, FileText, Save, ChevronDown, ChevronRight, Loader2, Hash, AlignLeft, TextQuote, Layers, MessageSquareText, Clock, Scissors, Sparkles, Wifi, WifiOff, Globe, Pencil, X, Check } from "lucide-react"
 import PageHeader from "../components/PageHeader"
 import FragmentList from "../components/FragmentList"
 import Card from "../components/Card"
@@ -18,15 +18,9 @@ const statIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   "Speaking time": Clock,
 }
 
-const IMAGE_STYLES = [
-  "Fotorrealista",
-  "Animacion 3D",
-  "Anime/Manga",
-  "Arte Conceptual",
-  "Cinematico",
-  "Comic",
-  "Acuarela",
-] as const
+type BridgeStatus = "loading" | "connected" | "no-cookies" | "no-extension" | "error"
+
+const LEGACY_STYLES = ["Cinematico", "Fotorrealista", "Animacion 3D", "Anime/Manga", "Arte Conceptual", "Comic", "Acuarela"]
 
 function ScriptStat({ label, value }: { label: string; value: string | number }) {
   const Icon = statIcons[label]
@@ -65,6 +59,76 @@ export default function Editor() {
   const promptEsRef = useRef<EventSource | null>(null)
   const [imageStyle, setImageStyle] = useState<string>("Cinematico")
   const [customStyle, setCustomStyle] = useState(false)
+  const [useGeminiWeb, setUseGeminiWeb] = useState(true)
+  const [pendingSavedStyle, setPendingSavedStyle] = useState<string | null>(null)
+
+  // Gemini Web bridge status
+  const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>("loading")
+  const [bridgeProfiles, setBridgeProfiles] = useState(0)
+  const [availableGems, setAvailableGems] = useState<Array<{ name: string; type: string; preview: string }>>([])
+
+  // Load Gemini Web bridge status and gems
+  useEffect(() => {
+    const checkBridge = () => {
+      api.getGeminiBridgeStatus()
+        .then((data) => {
+          setBridgeProfiles(data.authenticated)
+          if (data.authenticated > 0) {
+            setBridgeStatus("connected")
+          } else if (data.total_profiles > 0) {
+            setBridgeStatus("no-cookies")
+          } else {
+            setBridgeStatus("no-extension")
+          }
+        })
+        .catch(() => setBridgeStatus("error"))
+    }
+    checkBridge()
+    const interval = setInterval(checkBridge, 10000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Load gems from backend
+  useEffect(() => {
+    api.listGems()
+      .then((data) => setAvailableGems(data.gems))
+      .catch(() => {})
+  }, [])
+
+  // Gem preview panel
+  const [gemDetail, setGemDetail] = useState<{ name: string; type: string; value: string } | null>(null)
+  const [gemDetailLoading, setGemDetailLoading] = useState(false)
+  const [showFullPreview, setShowFullPreview] = useState(false)
+  const [editingGem, setEditingGem] = useState(false)
+  const [editGemValue, setEditGemValue] = useState("")
+  const [editGemSaving, setEditGemSaving] = useState(false)
+
+  // Fetch gem detail when style changes
+  useEffect(() => {
+    if (!imageStyle || customStyle) {
+      setGemDetail(null)
+      return
+    }
+    setGemDetailLoading(true)
+    api.getGem(imageStyle)
+      .then((d) => setGemDetail(d))
+      .catch(() => setGemDetail(null))
+      .finally(() => setGemDetailLoading(false))
+  }, [imageStyle, customStyle])
+
+  // Build style options from gems + legacy fallback
+  const gemNames = availableGems.map((g) => g.name)
+  const styleOptions = gemNames.length > 0 ? gemNames : ["Cinematico"]
+
+  // Get gem preview for display
+  const gemPreviewMap = Object.fromEntries(
+    availableGems.map((g) => [g.name, g.preview])
+  )
+
+  // Get gem type for icon
+  const gemTypeMap = Object.fromEntries(
+    availableGems.map((g) => [g.name, g.type])
+  )
 
   // Auto-save style when it changes (debounced)
   useEffect(() => {
@@ -83,16 +147,24 @@ export default function Editor() {
     if (!projectId) return
     api.getProject(projectId).then((p) => {
       setProjectTitle(p.title || p.name)
-      // Load saved prompt style
       const savedStyle = p.prompt_style
       if (savedStyle && savedStyle !== "Cinematico") {
         setImageStyle(savedStyle)
-        if (!(IMAGE_STYLES as readonly string[]).includes(savedStyle as any)) {
-          setCustomStyle(true)
-        }
+        setPendingSavedStyle(savedStyle)
       }
     }).catch(() => {})
   }, [projectId])
+
+  // Resolve saved style when gems finish loading (avoids race condition)
+  useEffect(() => {
+    if (!pendingSavedStyle) return
+    if (availableGems.length === 0) return // gems not loaded yet
+    const gemNames = availableGems.map((g) => g.name)
+    if (!LEGACY_STYLES.includes(pendingSavedStyle) && !gemNames.includes(pendingSavedStyle)) {
+      setCustomStyle(true)
+    }
+    setPendingSavedStyle(null)
+  }, [pendingSavedStyle, availableGems])
 
   // Load full script text
   useEffect(() => {
@@ -243,7 +315,7 @@ export default function Editor() {
     // Make the generation request
     try {
       const styleToUse = imageStyle
-      await api.generatePrompts(projectId, styleToUse)
+      await api.generatePrompts(projectId, styleToUse, useGeminiWeb)
       // SSE events handle the UI updates
     } catch (err: any) {
       clearInterval(timer)
@@ -371,16 +443,71 @@ export default function Editor() {
         )}
       </Card>
 
-      {/* Image Style Selector */}
+      {/* Image Style Selector + Gemini Web Status */}
       <Card className="mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Sparkles className="w-4 h-4 text-pink-400" />
-          <h3 className="text-sm font-semibold text-white font-sans">Image Style</h3>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-pink-400" />
+            <h3 className="text-sm font-semibold text-white font-sans">Image Style</h3>
+          </div>
+
+          {/* Gemini Web Bridge Status + Toggle */}
+          <div className="flex items-center gap-3">
+            {/* Toggle switch */}
+            <label className="flex items-center gap-1.5 cursor-pointer" title={useGeminiWeb ? "Gemini Web habilitado como fallback" : "Gemini Web deshabilitado"}>
+              <span className={`text-[10px] font-medium ${useGeminiWeb ? 'text-green-400/70' : 'text-gray-600'}`}>GW</span>
+              <div className="relative w-8 h-4 rounded-full transition-colors" style={{ backgroundColor: useGeminiWeb ? '#22c55e' : '#404040' }}>
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${useGeminiWeb ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </div>
+              <input type="checkbox" className="hidden" checked={useGeminiWeb} onChange={(e) => setUseGeminiWeb(e.target.checked)} />
+            </label>
+
+            {/* Status indicator */}
+            <div className="flex items-center gap-1.5 text-xs" title="Gemini Web cookie-based provider status">
+              {bridgeStatus === "connected" ? (
+                <>
+                  <Wifi className="w-3.5 h-3.5 text-green-400" />
+                  <span className="text-green-400 font-medium">Gemini Web</span>
+                  <span className="text-green-400/60">({bridgeProfiles} acc.)</span>
+                </>
+              ) : bridgeStatus === "no-cookies" ? (
+                <>
+                  <Globe className="w-3.5 h-3.5 text-yellow-400" />
+                  <span className="text-yellow-400">Gemini Web</span>
+                  <span className="text-yellow-400/60">sin cookies</span>
+                </>
+              ) : bridgeStatus === "no-extension" ? (
+                <>
+                  <WifiOff className="w-3.5 h-3.5 text-gray-500" />
+                  <span className="text-gray-500">Gemini Web</span>
+                  <span className="text-gray-500/60">ext. no detectada</span>
+                </>
+              ) : bridgeStatus === "loading" ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 text-gray-500 animate-spin" />
+                  <span className="text-gray-500">Gemini Web</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-3.5 h-3.5 text-red-400" />
+                  <span className="text-red-400">Gemini Web</span>
+                  <span className="text-red-400/60">error</span>
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs text-gray-500 font-semibold mb-1.5">Preset style</label>
+            <label className="block text-xs text-gray-500 font-semibold mb-1.5">
+              Visual style / Gem
+              {imageStyle && gemPreviewMap[imageStyle] && (
+                <span className="text-gray-600 font-normal ml-2">
+                  — preview: {gemPreviewMap[imageStyle]}
+                </span>
+              )}
+            </label>
             <select
               className="input w-full"
               value={customStyle ? "__custom__" : imageStyle}
@@ -395,10 +522,16 @@ export default function Editor() {
               }}
             >
               <option value="" disabled>Select style...</option>
-              <optgroup label="Predefined">
-                {IMAGE_STYLES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
+              <optgroup label="Estilos disponibles">
+                {styleOptions.map((s) => {
+                  const type = gemTypeMap[s] || "style"
+                  const icon = type === "prompt" ? "📝" : "🎨"
+                  return (
+                    <option key={s} value={s} title={type === "prompt" ? "Prompt maestro - instrucciones completas" : "Descriptor de estilo visual"}>
+                      {icon} {s}
+                    </option>
+                  )
+                })}
               </optgroup>
               <optgroup label="Other">
                 <option value="__custom__">Custom...</option>
@@ -433,6 +566,92 @@ export default function Editor() {
             </div>
           )}
         </div>
+
+        {/* Gem Preview Panel (editable) */}
+        {gemDetailLoading ? (
+          <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Loading gem details...
+          </div>
+        ) : gemDetail && !customStyle ? (
+          <div className="mt-3 border border-border rounded-lg bg-surface-card overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  {gemDetail.type === "prompt" ? "Prompt Maestro" : "Estilo Visual"}
+                </span>
+                <span className="text-[10px] text-gray-600 font-mono">
+                  {gemDetail.type === "prompt" ? "system prompt" : "descriptor"}
+                </span>
+              </div>
+              {editingGem ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    className="p-1 rounded hover:bg-surface-hover text-green-400 disabled:opacity-40"
+                    onClick={async () => {
+                      if (!editGemValue.trim()) return
+                      setEditGemSaving(true)
+                      try {
+                        await api.updateGem(imageStyle, { value: editGemValue })
+                        setGemDetail({ ...gemDetail, value: editGemValue })
+                        setEditingGem(false)
+                        // Refresh gem list to update previews
+                        api.listGems().then((d) => setAvailableGems(d.gems)).catch(() => {})
+                      } catch { /* ignore */ }
+                      setEditGemSaving(false)
+                    }}
+                    disabled={editGemSaving}
+                    title="Save"
+                  >
+                    {editGemSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  </button>
+                  <button
+                    className="p-1 rounded hover:bg-surface-hover text-gray-500"
+                    onClick={() => setEditingGem(false)}
+                    title="Cancel"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="p-1 rounded hover:bg-surface-hover text-gray-500 hover:text-accent"
+                  onClick={() => { setEditGemValue(gemDetail.value); setEditingGem(true); setShowFullPreview(true) }}
+                  title="Edit gem content"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Content */}
+            {editingGem ? (
+              <textarea
+                className="w-full px-3 py-2 text-xs font-mono leading-relaxed bg-[#0a0a0a] text-gray-300 border-0 resize-y min-h-[120px] focus:outline-none"
+                value={editGemValue}
+                onChange={(e) => setEditGemValue(e.target.value)}
+                autoFocus
+              />
+            ) : (
+              <pre className={`px-3 py-2 text-xs font-mono leading-relaxed text-gray-400 overflow-x-auto whitespace-pre-wrap ${
+                showFullPreview ? "" : "max-h-20 overflow-y-hidden"
+              }`}>
+                {gemDetail.value}
+              </pre>
+            )}
+
+            {/* Expand/collapse (only when not editing) */}
+            {!editingGem && gemDetail.value.length > 200 && (
+              <button
+                className="w-full px-3 py-1.5 text-xs text-accent hover:text-accent-light border-t border-border font-medium"
+                onClick={() => setShowFullPreview(!showFullPreview)}
+              >
+                {showFullPreview ? "Show less ▲" : `Show more (${gemDetail.value.length} chars) ▼`}
+              </button>
+            )}
+          </div>
+        ) : null}
       </Card>
 
       {/* Progress during prompt generation */}

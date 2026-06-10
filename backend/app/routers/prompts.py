@@ -13,6 +13,7 @@ router = APIRouter(prefix="/api/projects/{project_id}/prompts", tags=["prompts"]
 class GeneratePromptsRequest(BaseModel):
     style: str = "Cinematico"
     fragment_ids: list[int] | None = None
+    use_gemini_web: bool = True
 
 
 class SetStyleRequest(BaseModel):
@@ -35,6 +36,7 @@ async def generate_prompts(project_id: str, body: GeneratePromptsRequest):
             project_id,
             style=body.style,
             fragment_ids=body.fragment_ids,
+            use_gemini_web=body.use_gemini_web,
         )
         return {
             "project_id": project_id,
@@ -42,8 +44,10 @@ async def generate_prompts(project_id: str, body: GeneratePromptsRequest):
             "results": results,
         }
     except ValueError as e:
+        await sse_manager.emit_prompt_failed(project_id, str(e))
         raise HTTPException(400, str(e))
     except RuntimeError as e:
+        await sse_manager.emit_prompt_failed(project_id, str(e))
         raise HTTPException(502, str(e))
 
 
