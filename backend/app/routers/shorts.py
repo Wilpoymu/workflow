@@ -248,6 +248,16 @@ async def render_shorts(project_id: str, body: RenderRequest) -> RenderResponse:
             continue
         out_name = f"{project_id}_short_{idx:02d}.mp4"
         out_path = shorts_dir / out_name
+        # Version if file already exists — keep previous renders
+        if out_path.exists():
+            ver = 2
+            while True:
+                versioned = shorts_dir / f"{project_id}_short_{idx:02d}_v{ver}.mp4"
+                if not versioned.exists():
+                    out_path = versioned
+                    out_name = versioned.name
+                    break
+                ver += 1
 
         job = RenderJob(
             suggestion=s,
