@@ -196,6 +196,22 @@ async def download_render(project_id: str):
     )
 
 
+@router.delete("")
+async def delete_render(project_id: str):
+    """Delete the current render output."""
+    project = await project_service.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    output_dir = Path(project.base_dir) / "render"
+    output_path = output_dir / "output.mp4"
+
+    if output_path.exists():
+        output_path.unlink()
+        return {"ok": True, "deleted": str(output_path)}
+    return {"ok": True, "deleted": None}
+
+
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, project_id: str):
     await websocket.accept()

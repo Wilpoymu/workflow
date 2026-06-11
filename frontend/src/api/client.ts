@@ -206,6 +206,12 @@ export const api = {
       file_size_mb?: number
     }>(`/api/projects/${projectId}/render`),
 
+  deleteRender: (projectId: string) =>
+    request<{ ok: boolean; deleted: string | null }>(
+      `/api/projects/${projectId}/render`,
+      { method: "DELETE" },
+    ),
+
   renderWsUrl: (projectId: string) => {
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:"
     return `${proto}//${window.location.host}/api/projects/${projectId}/render/ws`
