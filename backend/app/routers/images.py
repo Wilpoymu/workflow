@@ -37,11 +37,12 @@ class ReferenceInfo(BaseModel):
     size_kb: float
 
 
-async def save_image(project_id: str, fragment_id: int, data: dict):
+async def save_image(project_id: str, fragment_id: int, data: dict) -> bool:
+    """Save a generated image to disk. Returns True on success, False on failure."""
     project = await project_service.get_project(project_id)
     if not project:
         logger.warning("[SAVE] Project %s not found", project_id)
-        return
+        return False
     img_dir = Path(project.base_dir) / "imagenes"
     img_dir.mkdir(parents=True, exist_ok=True)
 
@@ -58,26 +59,25 @@ async def save_image(project_id: str, fragment_id: int, data: dict):
     except Exception as e:
         logger.warning("[SAVE] Error parsing Flow response: %s", e)
 
-    if fife_url:
-        try:
-            path = img_dir / f"escena_{fragment_id:03d}.png"
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(fife_url, timeout=60)
-                resp.raise_for_status()
-                path.write_bytes(resp.content)
-            logger.info("[SAVE] Downloaded from fifeUrl fragment=%d size=%d bytes", fragment_id, len(resp.content))
-            status = "done"
-        except Exception as e:
-            logger.warning("[SAVE] Failed to download from fifeUrl: %s", e)
-            status = "failed"
-    else:
-        logger.warning("[SAVE] No fifeUrl found for fragment=%d, data=%s", fragment_id, json.dumps(data)[:500])
-        status = "failed"
+    if not fife_url:
+        logger.error("[SAVE] No fifeUrl for fragment=%d — Flow returned 200 but no image data. Data: %s",
+                     fragment_id, json.dumps(data)[:500])
+        await project_service.update_fragment(project_id, fragment_id, {"status": "failed"})
+        return False
 
-    await project_service.update_fragment(
-        project_id, fragment_id,
-        {"status": status},
-    )
+    try:
+        path = img_dir / f"escena_{fragment_id:03d}.png"
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(fife_url, timeout=60)
+            resp.raise_for_status()
+            path.write_bytes(resp.content)
+        logger.info("[SAVE] Downloaded fragment=%d size=%d bytes url=%.100s...", fragment_id, len(resp.content), fife_url)
+        await project_service.update_fragment(project_id, fragment_id, {"status": "done"})
+        return True
+    except Exception as e:
+        logger.error("[SAVE] Download failed fragment=%d: %s", fragment_id, e)
+        await project_service.update_fragment(project_id, fragment_id, {"status": "failed"})
+        return False
 
 
 @router.get("")

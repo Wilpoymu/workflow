@@ -14,7 +14,7 @@ from app.core.sse import sse_manager
 
 logger = logging.getLogger(__name__)
 
-SaveImageFn = Callable[[str, int, dict], Awaitable[None]]
+SaveImageFn = Callable[[str, int, dict], Awaitable[bool]]
 
 
 FLOW_UPLOAD_URL = "https://aisandbox-pa.googleapis.com/v1/flow/uploadImage"
@@ -367,14 +367,22 @@ class ForgeBridge:
             state["results"][rid] = r
             fid = int(rid)
 
-            if ok:
+            if ok and self._save_image:
+                saved = await self._save_image(state["project_id"], fid, parsed)
+                if saved:
+                    state["done"] += 1
+                    await sse_manager.emit_result(state["project_id"], batch_id, fid, "done")
+                else:
+                    state["failed"] += 1
+                    await sse_manager.emit_result(state["project_id"], batch_id, fid, "failed")
+                    logger.warning("[BRIDGE] Fragment %s: HTTP 200 but save_image failed", rid)
+            elif ok:
                 state["done"] += 1
-                if self._save_image:
-                    await self._save_image(state["project_id"], fid, parsed)
                 await sse_manager.emit_result(state["project_id"], batch_id, fid, "done")
             else:
                 state["failed"] += 1
                 await sse_manager.emit_result(state["project_id"], batch_id, fid, "failed")
+                logger.warning("[BRIDGE] Fragment %s: HTTP status %s", rid, status)
 
             progress = (state["done"] + state["failed"]) / state["total"] * 100
             await sse_manager.emit_progress(state["project_id"], batch_id, fid, progress)
