@@ -105,11 +105,12 @@ async def list_images(project_id: str):
         if not f.image_prompt.strip():
             continue
         if f.fragment_id not in existing_ids:
-            # File doesn't exist → report as pending regardless of fragment status
+            # File doesn't exist — check fragment status for correct label
+            frag_status = getattr(f, "status", "") or ""
             images.append(ImageInfo(
                 fragment_id=f.fragment_id,
                 url="",
-                status="pending",
+                status="failed" if frag_status == "failed" else "pending",
             ))
 
     return {"images": sorted(images, key=lambda x: x.fragment_id)}

@@ -382,7 +382,16 @@ class ForgeBridge:
             else:
                 state["failed"] += 1
                 await sse_manager.emit_result(state["project_id"], batch_id, fid, "failed")
-                logger.warning("[BRIDGE] Fragment %s: HTTP status %s", rid, status)
+                # Log full response for diagnosis
+                err_body = ""
+                try:
+                    if isinstance(raw_data, str) and len(raw_data) < 2000:
+                        err_body = raw_data
+                    elif isinstance(parsed, dict):
+                        err_body = json.dumps(parsed)[:2000]
+                except Exception:
+                    err_body = str(raw_data)[:500]
+                logger.error("[BRIDGE] Fragment %s FAILED: HTTP %s response=%.2000s", rid, status, err_body)
 
             progress = (state["done"] + state["failed"]) / state["total"] * 100
             await sse_manager.emit_progress(state["project_id"], batch_id, fid, progress)
