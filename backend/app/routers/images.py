@@ -273,13 +273,22 @@ async def get_reference_file(project_id: str, filename: str):
 
 @router.delete("/reference/{filename}")
 async def delete_reference(project_id: str, filename: str):
-    """Delete a reference image."""
+    """Delete a reference image and clear stale media IDs."""
     project = await project_service.get_project(project_id)
     if not project:
         raise HTTPException(404, "Project not found")
     path = Path(project.base_dir) / "personaje" / filename
     if path.exists():
         path.unlink()
+
+    # After deleting, if personaje dir is empty, clear all stored reference media IDs
+    personaje_dir = Path(project.base_dir) / "personaje"
+    remaining = list(personaje_dir.glob("*.png")) if personaje_dir.exists() else []
+    if not remaining:
+        bridge.clear_reference_media_ids(project_id)
+        await project_service.update_project_meta(project_id, {"reference_media_ids": []})
+        logger.info("[REF] Personaje dir empty, cleared all reference media IDs for %s", project_id)
+
     return {"ok": True, "deleted": filename}
 
 

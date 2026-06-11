@@ -199,10 +199,13 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
                 total = len(pending)
                 batch_id = uuid.uuid4().hex[:8]
 
-                # Load reference media IDs from project.json
-                ref_ids = getattr(project, "reference_media_ids", None)
-                if not ref_ids:
-                    ref_ids = bridge.get_reference_media_ids(project_id)
+                # Load reference media IDs only if personaje dir has files
+                personaje_dir = project_path / "personaje"
+                ref_ids = None
+                if personaje_dir.exists() and list(personaje_dir.glob("*.png")):
+                    ref_ids = getattr(project, "reference_media_ids", None)
+                    if not ref_ids:
+                        ref_ids = bridge.get_reference_media_ids(project_id)
 
                 sent = await bridge.dispatch(
                     project_id,

@@ -65,6 +65,11 @@ class ForgeBridge:
     def get_reference_media_ids(self, project_id: str) -> list[str]:
         return self._reference_media_ids.get(project_id, [])
 
+    def clear_reference_media_ids(self, project_id: str):
+        """Clear stored reference media IDs for a project."""
+        self._reference_media_ids.pop(project_id, None)
+        logger.info("[BRIDGE] Cleared reference media IDs for %s", project_id)
+
     async def _upload_reference_direct(self, image_bytes_b64: str, bearer_token: str) -> str | None:
         """Upload reference image directly to Flow API using bearer token (like FlowForge-v2)."""
         headers = {
