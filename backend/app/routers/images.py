@@ -92,9 +92,10 @@ async def list_images(project_id: str):
     if img_dir.exists():
         for p in sorted(img_dir.glob("escena_*.png")):
             fid = int(p.stem.split("_")[1])
+            mtime = int(p.stat().st_mtime)
             images.append(ImageInfo(
                 fragment_id=fid,
-                url=f"/api/projects/{project_id}/images/file/{p.name}",
+                url=f"/api/projects/{project_id}/images/file/{p.name}?t={mtime}",
                 status="done",
             ))
 
