@@ -304,10 +304,10 @@ export const api = {
     ),
 
   // Prompt Generation
-  generatePrompts: (projectId: string, style?: string, useGeminiWeb?: boolean) =>
+  generatePrompts: (projectId: string, style?: string, useGeminiWeb?: boolean, fragmentIds?: number[]) =>
     request<{ project_id: string; total: number; results: Array<{ fragment_id: number; original_text: string; image_prompt: string }> }>(
       `/api/projects/${projectId}/prompts/generate`,
-      { method: "POST", body: JSON.stringify({ style: style || "Cinematico", use_gemini_web: useGeminiWeb ?? true }) },
+      { method: "POST", body: JSON.stringify({ style: style || "Cinematico", use_gemini_web: useGeminiWeb ?? true, ...(fragmentIds?.length ? { fragment_ids: fragmentIds } : {}) }) },
     ),
 
   setPromptStyle: (projectId: string, style: string) =>

@@ -248,6 +248,45 @@ export default function Editor() {
     }
   }
 
+  const handleRegenerateSinglePrompt = async (fragmentId: number) => {
+    if (!projectId) return
+    if (generatingPrompts) return
+
+    setGeneratingPrompts(true)
+    setGeneratingTotal(1)
+    setCurrentBatch(0)
+    setTotalBatches(1)
+    setGeneratingElapsed(0)
+
+    const timerStart = Date.now()
+    const timer = setInterval(() => {
+      setGeneratingElapsed(Math.floor((Date.now() - timerStart) / 1000))
+    }, 1000)
+
+    promptEsRef.current?.close()
+    const es = new EventSource(api.promptEventsUrl(projectId))
+    promptEsRef.current = es
+    es.addEventListener("prompt_batch_complete", () => {
+      setCurrentBatch(prev => prev + 1)
+    })
+    es.addEventListener("prompt_all_complete", () => {
+      load()
+      setGeneratingPrompts(false)
+      es.close()
+      clearInterval(timer)
+      toast("Prompt regenerated", "success")
+    })
+
+    try {
+      await api.generatePrompts(projectId, imageStyle, useGeminiWeb, [fragmentId])
+    } catch (err: any) {
+      toast(err?.message ?? "Regenerate failed", "error")
+      setGeneratingPrompts(false)
+      es.close()
+      clearInterval(timer)
+    }
+  }
+
   const handleGeneratePrompts = async () => {
     if (!projectId) return
     
@@ -695,6 +734,8 @@ export default function Editor() {
           selectedId={selectedId}
           onSelect={setSelectedId}
           onSave={handleSave}
+          onRegeneratePrompt={(fragmentId) => handleRegenerateSinglePrompt(fragmentId)}
+          generatingPrompts={generatingPrompts}
         />
       )}
     </div>
