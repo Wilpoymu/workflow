@@ -161,6 +161,33 @@ export default function Images() {
     })
   }
 
+  const handleRegenerate = async (fragmentId: number) => {
+    if (!projectId) return
+    if (generating) return
+    setGenerating(true)
+    try {
+      const res = await api.generateImages(projectId, {
+        concurrency,
+        accounts: Array.from(selectedAccounts),
+        model,
+        fragment_ids: [fragmentId],
+        force: true,
+      })
+      if (res.batch_id) {
+        setBatchId(res.batch_id)
+        setStats({ done: 0, failed: 0, total: res.total })
+        subscribeSSE()
+        setImages((prev) =>
+          prev.map((img) =>
+            img.fragment_id === fragmentId ? { ...img, status: "generating" } : img,
+          ),
+        )
+      }
+    } catch (err: any) {
+      toast(err?.message ?? "Failed to regenerate", "error")
+    }
+  }
+
   const handleGenerate = async () => {
     if (!projectId) return
     if (selectedAccounts.size === 0) {
@@ -498,16 +525,27 @@ export default function Images() {
             return (
               <Card key={img.fragment_id} className="p-0 overflow-hidden group animate-fade-in">
                 {img.url && img.status === "done" ? (
-                  <div className="aspect-square bg-surface-elevated overflow-hidden">
+                  <div className="relative aspect-square bg-surface-elevated overflow-hidden">
                     <img
                       src={img.url}
                       alt={`Scene ${img.fragment_id}`}
                       className="w-full h-full object-cover"
                       loading="lazy"
                     />
+                    {/* Regenerate overlay */}
+                    <button
+                      onClick={() => handleRegenerate(img.fragment_id)}
+                      disabled={generating}
+                      className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/50 transition-all opacity-0 group-hover:opacity-100 disabled:opacity-0"
+                    >
+                      <span className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm text-xs text-white">
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Regenerate
+                      </span>
+                    </button>
                   </div>
                 ) : (
-                  <div className="aspect-square bg-surface-elevated flex flex-col items-center justify-center gap-2">
+                  <div className="relative aspect-square bg-surface-elevated flex flex-col items-center justify-center gap-2">
                     {img.status === "generating" ? (
                       <>
                         <Loader2 className="w-6 h-6 text-accent animate-spin" />
@@ -520,6 +558,14 @@ export default function Images() {
                       <>
                         <XCircle className="w-8 h-8 text-red-500/40" />
                         <span className="text-[11px] text-red-500/60">Failed</span>
+                        <button
+                          onClick={() => handleRegenerate(img.fragment_id)}
+                          disabled={generating}
+                          className="mt-2 px-2.5 py-1 rounded-md bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[10px] flex items-center gap-1 transition-all"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Retry
+                        </button>
                       </>
                     ) : img.status === "done" ? (
                       <CheckCircle className="w-8 h-8 text-green-500/40" />

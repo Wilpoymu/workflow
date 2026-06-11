@@ -27,6 +27,8 @@ class GenerateRequest(BaseModel):
     accounts: list[str] | None = None
     reference_image_ids: list[str] | None = None
     model: str = "NARWHAL"
+    fragment_ids: list[int] | None = None
+    force: bool = False
 
 
 class ReferenceInfo(BaseModel):
@@ -136,24 +138,31 @@ async def generate_images(project_id: str, config: GenerateRequest = GenerateReq
         raise HTTPException(404, "Project not found")
 
     fragments = await project_service.list_fragments(project_id)
-    pending = [f for f in fragments if f.image_prompt.strip()]
+
+    # Filter by specific fragment_ids if provided
+    if config.fragment_ids:
+        pending = [f for f in fragments if f.fragment_id in config.fragment_ids and f.image_prompt.strip()]
+    else:
+        pending = [f for f in fragments if f.image_prompt.strip()]
+
     if not pending:
         raise HTTPException(400, "No fragments with prompts to generate")
 
-    # Skip fragments that already have a generated image
-    img_dir = Path(project.base_dir) / "imagenes"
-    existing_ids: set[int] = set()
-    if img_dir.exists():
-        for p in img_dir.glob("escena_*.png"):
-            try:
-                fid = int(p.stem.split("_")[1])
-                existing_ids.add(fid)
-            except (IndexError, ValueError):
-                pass
+    # Skip fragments that already have a generated image (unless force)
+    if not config.force:
+        img_dir = Path(project.base_dir) / "imagenes"
+        existing_ids: set[int] = set()
+        if img_dir.exists():
+            for p in img_dir.glob("escena_*.png"):
+                try:
+                    fid = int(p.stem.split("_")[1])
+                    existing_ids.add(fid)
+                except (IndexError, ValueError):
+                    pass
 
-    if existing_ids:
-        logger.info("[GENERATE] %d images already exist, skipping them", len(existing_ids))
-        pending = [f for f in pending if f.fragment_id not in existing_ids]
+        if existing_ids:
+            logger.info("[GENERATE] %d images already exist, skipping them", len(existing_ids))
+            pending = [f for f in pending if f.fragment_id not in existing_ids]
 
     if not pending:
         return {"batch_id": "", "total": 0, "message": "All fragments already have images"}
