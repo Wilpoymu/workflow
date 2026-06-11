@@ -374,14 +374,23 @@ class ForgeBridge:
                     await sse_manager.emit_result(state["project_id"], batch_id, fid, "done")
                 else:
                     state["failed"] += 1
-                    await sse_manager.emit_result(state["project_id"], batch_id, fid, "failed")
+                    await sse_manager.emit_result(state["project_id"], batch_id, fid, "failed",
+                                                   error="Flow returned 200 but no image data")
                     logger.warning("[BRIDGE] Fragment %s: HTTP 200 but save_image failed", rid)
             elif ok:
                 state["done"] += 1
                 await sse_manager.emit_result(state["project_id"], batch_id, fid, "done")
             else:
                 state["failed"] += 1
-                await sse_manager.emit_result(state["project_id"], batch_id, fid, "failed")
+                # Extract human-readable error from Flow response
+                err_msg = ""
+                try:
+                    if isinstance(parsed, dict):
+                        err = parsed.get("error", {})
+                        err_msg = err.get("message", "") or json.dumps(err)[:200]
+                except Exception:
+                    err_msg = str(raw_data)[:200]
+                await sse_manager.emit_result(state["project_id"], batch_id, fid, "failed", error=err_msg)
                 # Log full response for diagnosis
                 err_body = ""
                 try:
