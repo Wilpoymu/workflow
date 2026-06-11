@@ -209,9 +209,11 @@ export default function Workflow() {
     try {
       const savedConcurrency = projectId ? sessionStorage.getItem(`images-${projectId}-concurrency`) : null
       const savedAccounts = projectId ? sessionStorage.getItem(`images-${projectId}-accounts`) : null
+      const savedModel = projectId ? sessionStorage.getItem(`images-${projectId}-model`) : null
       const config: Record<string, any> = {}
       if (savedConcurrency) config.concurrency = Number(savedConcurrency)
       if (savedAccounts) config.accounts = JSON.parse(savedAccounts)
+      if (savedModel) config.model = savedModel
       await api.startWorkflow(projectId, config)
       setWorkflow((prev) => ({ ...prev, status: "running", error: null }))
     } catch (err: any) {

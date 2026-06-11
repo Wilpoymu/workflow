@@ -20,10 +20,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/projects/{project_id}/images", tags=["images"])
 
 
+FLOW_MODELS = ["NARWHAL", "GEM_PIX_2", "PINHOLE"]
+
 class GenerateRequest(BaseModel):
     concurrency: int = 2
     accounts: list[str] | None = None
     reference_image_ids: list[str] | None = None
+    model: str = "NARWHAL"
+    fragment_ids: list[int] | None = None
+    force: bool = False
 
 
 class ReferenceInfo(BaseModel):
@@ -87,9 +92,10 @@ async def list_images(project_id: str):
     if img_dir.exists():
         for p in sorted(img_dir.glob("escena_*.png")):
             fid = int(p.stem.split("_")[1])
+            mtime = int(p.stat().st_mtime)
             images.append(ImageInfo(
                 fragment_id=fid,
-                url=f"/api/projects/{project_id}/images/file/{p.name}",
+                url=f"/api/projects/{project_id}/images/file/{p.name}?t={mtime}",
                 status="done",
             ))
 
@@ -133,24 +139,31 @@ async def generate_images(project_id: str, config: GenerateRequest = GenerateReq
         raise HTTPException(404, "Project not found")
 
     fragments = await project_service.list_fragments(project_id)
-    pending = [f for f in fragments if f.image_prompt.strip()]
+
+    # Filter by specific fragment_ids if provided
+    if config.fragment_ids:
+        pending = [f for f in fragments if f.fragment_id in config.fragment_ids and f.image_prompt.strip()]
+    else:
+        pending = [f for f in fragments if f.image_prompt.strip()]
+
     if not pending:
         raise HTTPException(400, "No fragments with prompts to generate")
 
-    # Skip fragments that already have a generated image
-    img_dir = Path(project.base_dir) / "imagenes"
-    existing_ids: set[int] = set()
-    if img_dir.exists():
-        for p in img_dir.glob("escena_*.png"):
-            try:
-                fid = int(p.stem.split("_")[1])
-                existing_ids.add(fid)
-            except (IndexError, ValueError):
-                pass
+    # Skip fragments that already have a generated image (unless force)
+    if not config.force:
+        img_dir = Path(project.base_dir) / "imagenes"
+        existing_ids: set[int] = set()
+        if img_dir.exists():
+            for p in img_dir.glob("escena_*.png"):
+                try:
+                    fid = int(p.stem.split("_")[1])
+                    existing_ids.add(fid)
+                except (IndexError, ValueError):
+                    pass
 
-    if existing_ids:
-        logger.info("[GENERATE] %d images already exist, skipping them", len(existing_ids))
-        pending = [f for f in pending if f.fragment_id not in existing_ids]
+        if existing_ids:
+            logger.info("[GENERATE] %d images already exist, skipping them", len(existing_ids))
+            pending = [f for f in pending if f.fragment_id not in existing_ids]
 
     if not pending:
         return {"batch_id": "", "total": 0, "message": "All fragments already have images"}
@@ -164,12 +177,16 @@ async def generate_images(project_id: str, config: GenerateRequest = GenerateReq
             if len(raw) <= 5 * 1024 * 1024:  # 5MB limit
                 ref_b64_list.append(base64.b64encode(raw).decode("ascii"))
 
+    if config.model not in FLOW_MODELS:
+        raise HTTPException(400, f"Invalid model '{config.model}'. Valid: {', '.join(FLOW_MODELS)}")
+
     batch_id = uuid.uuid4().hex[:8]
     total = await bridge.dispatch(
         project_id,
         project.base_dir,
         pending,
         batch_id,
+        model=config.model,
         concurrency=config.concurrency,
         selected_accounts=config.accounts,
         reference_image_ids=config.reference_image_ids,
@@ -257,13 +274,22 @@ async def get_reference_file(project_id: str, filename: str):
 
 @router.delete("/reference/{filename}")
 async def delete_reference(project_id: str, filename: str):
-    """Delete a reference image."""
+    """Delete a reference image and clear stale media IDs."""
     project = await project_service.get_project(project_id)
     if not project:
         raise HTTPException(404, "Project not found")
     path = Path(project.base_dir) / "personaje" / filename
     if path.exists():
         path.unlink()
+
+    # After deleting, if personaje dir is empty, clear all stored reference media IDs
+    personaje_dir = Path(project.base_dir) / "personaje"
+    remaining = list(personaje_dir.glob("*.png")) if personaje_dir.exists() else []
+    if not remaining:
+        bridge.clear_reference_media_ids(project_id)
+        await project_service.update_project_meta(project_id, {"reference_media_ids": []})
+        logger.info("[REF] Personaje dir empty, cleared all reference media IDs for %s", project_id)
+
     return {"ok": True, "deleted": filename}
 
 

@@ -67,6 +67,7 @@ function buildParagraphs(words: Word[]): Paragraph[] {
 
 export default function ScriptSelector({ projectId, onSelect, onClose }: ScriptSelectorProps) {
   const [words, setWords] = useState<Word[]>([])
+  const [scriptText, setScriptText] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selection, setSelection] = useState<SelectionRange | null>(null)
@@ -76,13 +77,38 @@ export default function ScriptSelector({ projectId, onSelect, onClose }: ScriptS
   const [maxDuration] = useState(90)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const paragraphs = useMemo(() => buildParagraphs(words), [words])
+  // Build paragraphs from text.txt structure (split by \n\n), fall back to time-gap heuristic
+  const paragraphs = useMemo(() => {
+    if (!scriptText) return buildParagraphs(words)
+    const paraTexts = scriptText.split(/\n\n+/).filter((p) => p.trim())
+    const result: Paragraph[] = []
+    let wordIdx = 0
+    for (const para of paraTexts) {
+      const paraWordCount = para.split(/\s+/).filter((w) => w.trim()).length
+      if (paraWordCount === 0) continue
+      const startIdx = wordIdx
+      wordIdx += paraWordCount
+      const endIdx = Math.min(wordIdx - 1, words.length - 1)
+      if (startIdx <= endIdx && startIdx < words.length) {
+        result.push({ startIdx, endIdx })
+      }
+    }
+    // Fallback: if result doesn't cover all words, use time-gap method
+    if (result.length === 0 || result[result.length - 1].endIdx < words.length - 10) {
+      return buildParagraphs(words)
+    }
+    return result
+  }, [scriptText, words])
 
   useEffect(() => {
     setLoading(true)
-    api.getWordTimestamps(projectId)
-      .then((res) => {
-        setWords(res.words.filter((w) => w.type === "word"))
+    Promise.all([
+      api.getWordTimestamps(projectId),
+      api.getScript(projectId).catch(() => null),
+    ])
+      .then(([wordRes, scriptRes]) => {
+        setWords(wordRes.words.filter((w) => w.type === "word"))
+        if (scriptRes?.text) setScriptText(scriptRes.text)
       })
       .catch((err) => setError(err?.message ?? "Failed to load word timestamps"))
       .finally(() => setLoading(false))
@@ -162,7 +188,7 @@ export default function ScriptSelector({ projectId, onSelect, onClose }: ScriptS
           <div>
             <h2 className="text-sm font-semibold text-white font-sans">Script Editor</h2>
             <p className="text-[11px] text-gray-600 font-mono">
-              {loading ? "Loading..." : `${words.length} words · ${paragraphs.length} paragraphs`}
+              {loading ? "Loading..." : `${words.length} words · ${paragraphs.length} paragraphs${scriptText ? " (from text)" : ""}`}
             </p>
           </div>
         </div>
@@ -190,40 +216,40 @@ export default function ScriptSelector({ projectId, onSelect, onClose }: ScriptS
         </div>
       ) : (
         <>
-          {/* Selection info bar */}
+          {/* Selection info bar — fixed height to prevent DOM shifting */}
           {selection && (
-            <div className="px-6 py-3 bg-surface-card border-b border-border shrink-0">
-              <div className="flex items-center gap-4 text-xs">
-                <div className="flex items-center gap-1.5 text-gray-400">
-                  <Clock className="w-3 h-3" />
-                  <span className="font-mono">{fmtTime(startSec)}</span>
-                  <span className="text-gray-600">→</span>
-                  <span className="font-mono">{fmtTime(endSec)}</span>
+            <div className="h-[185px] shrink-0 bg-surface-card border-b border-border overflow-y-auto">
+              <div className="px-6 py-3">
+                <div className="flex items-center gap-4 text-xs">
+                  <div className="flex items-center gap-1.5 text-gray-400">
+                    <Clock className="w-3 h-3" />
+                    <span className="font-mono">{fmtTime(startSec)}</span>
+                    <span className="text-gray-600">→</span>
+                    <span className="font-mono">{fmtTime(endSec)}</span>
+                  </div>
+                  <div className="h-4 w-px bg-border" />
+                  <span className={`font-mono font-semibold ${overMax ? "text-red-400" : "text-accent"}`}>
+                    {fmtDuration(duration)}
+                  </span>
+                  <div className="h-4 w-px bg-border" />
+                  <span className="text-gray-500 font-mono">{selectedWords.length} words</span>
+                  {overMax && (
+                    <>
+                      <div className="h-4 w-px bg-border" />
+                      <span className="text-red-400/80 text-[11px] flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" /> Exceeds {maxDuration}s
+                      </span>
+                    </>
+                  )}
                 </div>
-                <div className="h-4 w-px bg-border" />
-                <span className={`font-mono font-semibold ${overMax ? "text-red-400" : "text-accent"}`}>
-                  {fmtDuration(duration)}
-                </span>
-                <div className="h-4 w-px bg-border" />
-                <span className="text-gray-500 font-mono">{selectedWords.length} words</span>
-                {overMax && (
-                  <>
-                    <div className="h-4 w-px bg-border" />
-                    <span className="text-red-400/80 text-[11px] flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" /> Exceeds {maxDuration}s
-                    </span>
-                  </>
-                )}
-              </div>
-              <div className="mt-2 h-1.5 bg-surface-hover rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-150 ${overMax ? "bg-red-500" : "bg-accent"}`}
-                  style={{ width: `${Math.min(100, (duration / maxDuration) * 100)}%` }}
-                />
-              </div>
+                <div className="mt-2 h-1.5 bg-surface-hover rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-150 ${overMax ? "bg-red-500" : "bg-accent"}`}
+                    style={{ width: `${Math.min(100, (duration / maxDuration) * 100)}%` }}
+                  />
+                </div>
 
-              {/* Selected text preview */}
-              {selectedWords.length > 0 && (
+                {/* Selected text preview — fixed internal height */}
                 <div className="mt-3 p-3 bg-surface-hover rounded-lg border border-border/50">
                   <p className="text-xs text-gray-500 font-sans font-semibold mb-1.5 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400/60" />
@@ -232,11 +258,13 @@ export default function ScriptSelector({ projectId, onSelect, onClose }: ScriptS
                       {selectedWords.length} words · {selectedWords.join(" ").length} chars
                     </span>
                   </p>
-                  <p className="text-sm text-gray-300 leading-relaxed font-sans max-h-24 overflow-y-auto">
-                    {selectedWords.map((w) => w.text).join(" ")}
-                  </p>
+                  <div className="max-h-[60px] overflow-y-auto">
+                    <p className="text-sm text-gray-300 leading-relaxed font-sans">
+                      {selectedWords.map((w) => w.text).join(" ")}
+                    </p>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
 

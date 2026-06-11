@@ -200,6 +200,15 @@ async def render_shorts(project_id: str, body: RenderRequest) -> RenderResponse:
     shorts_dir = project_dir / "shorts"
     shorts_dir.mkdir(parents=True, exist_ok=True)
 
+    # Clean up leftover temp files from previous renders (.srt, .ass)
+    # Keep .mp4 files intact
+    for f in shorts_dir.iterdir():
+        if f.suffix.lower() in (".srt", ".ass") and f.is_file():
+            try:
+                f.unlink()
+            except OSError:
+                pass
+
     results: list[RenderResult] = []
     custom_srt_files: list[Path] = []
     manual_by_idx = {c.index: c for c in body.manual_clips}
@@ -239,6 +248,16 @@ async def render_shorts(project_id: str, body: RenderRequest) -> RenderResponse:
             continue
         out_name = f"{project_id}_short_{idx:02d}.mp4"
         out_path = shorts_dir / out_name
+        # Version if file already exists — keep previous renders
+        if out_path.exists():
+            ver = 2
+            while True:
+                versioned = shorts_dir / f"{project_id}_short_{idx:02d}_v{ver}.mp4"
+                if not versioned.exists():
+                    out_path = versioned
+                    out_name = versioned.name
+                    break
+                ver += 1
 
         job = RenderJob(
             suggestion=s,

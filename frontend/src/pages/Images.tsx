@@ -36,6 +36,11 @@ export default function Images() {
     const saved = sessionStorage.getItem(`${storageKey}-concurrency`)
     return saved ? Number(saved) : 2
   })
+  const [model, setModel] = useState<string>(() => {
+    if (!storageKey) return "NARWHAL"
+    return sessionStorage.getItem(`${storageKey}-model`) ?? "NARWHAL"
+  })
+  const MODELS = ["NARWHAL", "GEM_PIX_2", "PINHOLE"]
   const [loading, setLoading] = useState(true)
   const [projectTitle, setProjectTitle] = useState("")
   const [generating, setGenerating] = useState(false)
@@ -95,6 +100,11 @@ export default function Images() {
 
   useEffect(() => {
     if (!storageKey) return
+    sessionStorage.setItem(`${storageKey}-model`, model)
+  }, [model, storageKey])
+
+  useEffect(() => {
+    if (!storageKey) return
     sessionStorage.setItem(`${storageKey}-accounts`, JSON.stringify([...selectedAccounts]))
   }, [selectedAccounts, storageKey])
 
@@ -151,6 +161,33 @@ export default function Images() {
     })
   }
 
+  const handleRegenerate = async (fragmentId: number) => {
+    if (!projectId) return
+    if (generating) return
+    setGenerating(true)
+    try {
+      const res = await api.generateImages(projectId, {
+        concurrency,
+        accounts: Array.from(selectedAccounts),
+        model,
+        fragment_ids: [fragmentId],
+        force: true,
+      })
+      if (res.batch_id) {
+        setBatchId(res.batch_id)
+        setStats({ done: 0, failed: 0, total: res.total })
+        subscribeSSE()
+        setImages((prev) =>
+          prev.map((img) =>
+            img.fragment_id === fragmentId ? { ...img, status: "generating" } : img,
+          ),
+        )
+      }
+    } catch (err: any) {
+      toast(err?.message ?? "Failed to regenerate", "error")
+    }
+  }
+
   const handleGenerate = async () => {
     if (!projectId) return
     if (selectedAccounts.size === 0) {
@@ -166,6 +203,7 @@ export default function Images() {
       const res = await api.generateImages(projectId, {
         concurrency,
         accounts: Array.from(selectedAccounts),
+        model,
       })
       setBatchId(res.batch_id)
       setStats(prev => ({ ...prev, total: res.total }))
@@ -315,6 +353,38 @@ export default function Images() {
             </p>
           </div>
         )}
+
+        {/* Model Selector */}
+        {connectedAccounts.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-400" />
+                <span className="text-sm text-gray-400">Model:</span>
+              </div>
+              <div className="flex gap-1 bg-surface-hover rounded-lg p-0.5">
+                {MODELS.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setModel(m)}
+                    className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all ${
+                      model === m
+                        ? "bg-accent/20 text-accent border border-accent/30"
+                        : "text-gray-500 hover:text-white"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-gray-600 mt-2">
+              {model === "NARWHAL" ? "Default model — good quality, fast" :
+               model === "GEM_PIX_2" ? "Gemini Pixel 2 — higher quality, more detailed" :
+               "PINHOLE — alternative model"}
+            </p>
+          </div>
+        )}
       </Card>
 
       {/* Reference Image Section */}
@@ -384,7 +454,6 @@ export default function Images() {
                     if (!projectId) return
                     try {
                       await api.deleteReference(projectId, ref.name)
-                      setRefMediaIds([])
                       loadReferences()
                       toast("Reference removed", "success")
                     } catch {
@@ -456,16 +525,27 @@ export default function Images() {
             return (
               <Card key={img.fragment_id} className="p-0 overflow-hidden group animate-fade-in">
                 {img.url && img.status === "done" ? (
-                  <div className="aspect-square bg-surface-elevated overflow-hidden">
+                  <div className="relative aspect-square bg-surface-elevated overflow-hidden">
                     <img
                       src={img.url}
                       alt={`Scene ${img.fragment_id}`}
                       className="w-full h-full object-cover"
                       loading="lazy"
                     />
+                    {/* Regenerate overlay */}
+                    <button
+                      onClick={() => handleRegenerate(img.fragment_id)}
+                      disabled={generating}
+                      className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/50 transition-all opacity-0 group-hover:opacity-100 disabled:opacity-0"
+                    >
+                      <span className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm text-xs text-white">
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Regenerate
+                      </span>
+                    </button>
                   </div>
                 ) : (
-                  <div className="aspect-square bg-surface-elevated flex flex-col items-center justify-center gap-2">
+                  <div className="relative aspect-square bg-surface-elevated flex flex-col items-center justify-center gap-2">
                     {img.status === "generating" ? (
                       <>
                         <Loader2 className="w-6 h-6 text-accent animate-spin" />
@@ -478,11 +558,29 @@ export default function Images() {
                       <>
                         <XCircle className="w-8 h-8 text-red-500/40" />
                         <span className="text-[11px] text-red-500/60">Failed</span>
+                        <button
+                          onClick={() => handleRegenerate(img.fragment_id)}
+                          disabled={generating}
+                          className="mt-2 px-2.5 py-1 rounded-md bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[10px] flex items-center gap-1 transition-all"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Retry
+                        </button>
                       </>
                     ) : img.status === "done" ? (
                       <CheckCircle className="w-8 h-8 text-green-500/40" />
                     ) : (
-                      <ImageIcon className="w-8 h-8 text-gray-700" />
+                      <>
+                        <ImageIcon className="w-8 h-8 text-gray-700" />
+                        <button
+                          onClick={() => handleRegenerate(img.fragment_id)}
+                          disabled={generating}
+                          className="mt-2 px-2.5 py-1 rounded-md bg-accent/10 hover:bg-accent/20 text-accent text-[10px] flex items-center gap-1 transition-all"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          Generate
+                        </button>
+                      </>
                     )}
                   </div>
                 )}

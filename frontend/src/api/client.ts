@@ -73,7 +73,7 @@ export const api = {
       `/api/accounts`
     ),
 
-  generateImages: (projectId: string, config?: { concurrency?: number; accounts?: string[]; reference_image_ids?: string[] }) =>
+  generateImages: (projectId: string, config?: { concurrency?: number; accounts?: string[]; reference_image_ids?: string[]; model?: string; fragment_ids?: number[]; force?: boolean }) =>
     request<{ batch_id: string; total: number; reference_image_ids: string[] }>(
       `/api/projects/${projectId}/images/generate`,
       { method: "POST", body: JSON.stringify(config || {}) },

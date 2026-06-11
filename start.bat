@@ -26,7 +26,7 @@ if %ERRORLEVEL% neq 0 (
 )
 echo.
 
-:: ── Frontend (uses Python for cross-platform detection) ──
+:: ── Frontend ────────────────────────────────
 echo [FRONTEND] Setting up...
 python "%~dp0backend\setup_frontend.py"
 if %ERRORLEVEL% neq 0 (
@@ -34,19 +34,10 @@ if %ERRORLEVEL% neq 0 (
 )
 echo.
 
-:: Detect PM for the dev server (re-run here so batch knows)
-set "PM=npm"
-bun --version >nul 2>nul
-if %ERRORLEVEL% equ 0 set "PM=bun"
-
 :: ── Build extension ────────────────────────
 echo [EXTENSION] Building Chrome extension...
 cd /d "%~dp0extension"
-if "%PM%"=="bun" (
-    bun run build >nul 2>&1
-) else (
-    call npx --yes wxt build >nul 2>&1
-)
+bun run build >nul 2>&1
 if exist ".output\chrome-mv3\manifest.json" (
     echo [EXTENSION] Build OK ^(.output\chrome-mv3^)
 ) else (
@@ -61,11 +52,7 @@ echo [1/2] Starting Backend (FastAPI :8000)...
 start "Workflow Backend" cmd /k "cd /d "%~dp0backend" && python -m uvicorn app.main:app --reload"
 
 echo [2/2] Starting Frontend (Vite :5173)...
-if "%PM%"=="bun" (
-    start "Workflow Frontend" cmd /k "cd /d "%~dp0frontend" && bun run dev"
-) else (
-    start "Workflow Frontend" cmd /k "cd /d "%~dp0frontend" && npm run dev"
-)
+start "Workflow Frontend" cmd /k "cd /d "%~dp0frontend" && bun run dev"
 
 echo.
 echo ========================================

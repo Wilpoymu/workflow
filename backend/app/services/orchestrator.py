@@ -69,6 +69,7 @@ async def start_workflow(
     render_config: Optional[dict] = None,
     concurrency: int = 2,
     accounts: list[str] | None = None,
+    model: str = "NARWHAL",
 ) -> str:
     """
     Iniciar el pipeline completo para un proyecto.
@@ -89,12 +90,12 @@ async def start_workflow(
     await sse_manager.emit_workflow_start(project_id)
     
     # Ejecutar pipeline en background
-    asyncio.create_task(_run_pipeline(project_id, render_config or {}, concurrency, accounts or []))
+    asyncio.create_task(_run_pipeline(project_id, render_config or {}, concurrency, accounts or [], model))
     
     return project_id
 
 
-async def _run_pipeline(project_id: str, render_config: dict, concurrency: int = 2, accounts: list[str] | None = None):
+async def _run_pipeline(project_id: str, render_config: dict, concurrency: int = 2, accounts: list[str] | None = None, model: str = "NARWHAL"):
     """Ejecutar el pipeline completo"""
     workflow = _active_workflows.get(project_id)
     if not workflow:
@@ -198,16 +199,20 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
                 total = len(pending)
                 batch_id = uuid.uuid4().hex[:8]
 
-                # Load reference media IDs from project.json
-                ref_ids = getattr(project, "reference_media_ids", None)
-                if not ref_ids:
-                    ref_ids = bridge.get_reference_media_ids(project_id)
+                # Load reference media IDs only if personaje dir has files
+                personaje_dir = project_path / "personaje"
+                ref_ids = None
+                if personaje_dir.exists() and list(personaje_dir.glob("*.png")):
+                    ref_ids = getattr(project, "reference_media_ids", None)
+                    if not ref_ids:
+                        ref_ids = bridge.get_reference_media_ids(project_id)
 
                 sent = await bridge.dispatch(
                     project_id,
                     str(project_path),
                     pending,
                     batch_id,
+                    model=model,
                     concurrency=concurrency,
                     selected_accounts=accounts,
                     reference_image_ids=ref_ids,
