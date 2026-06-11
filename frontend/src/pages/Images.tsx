@@ -570,7 +570,17 @@ export default function Images() {
                     ) : img.status === "done" ? (
                       <CheckCircle className="w-8 h-8 text-green-500/40" />
                     ) : (
-                      <ImageIcon className="w-8 h-8 text-gray-700" />
+                      <>
+                        <ImageIcon className="w-8 h-8 text-gray-700" />
+                        <button
+                          onClick={() => handleRegenerate(img.fragment_id)}
+                          disabled={generating}
+                          className="mt-2 px-2.5 py-1 rounded-md bg-accent/10 hover:bg-accent/20 text-accent text-[10px] flex items-center gap-1 transition-all"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          Generate
+                        </button>
+                      </>
                     )}
                   </div>
                 )}
