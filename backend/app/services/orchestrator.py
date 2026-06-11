@@ -69,6 +69,7 @@ async def start_workflow(
     render_config: Optional[dict] = None,
     concurrency: int = 2,
     accounts: list[str] | None = None,
+    model: str = "NARWHAL",
 ) -> str:
     """
     Iniciar el pipeline completo para un proyecto.
@@ -89,12 +90,12 @@ async def start_workflow(
     await sse_manager.emit_workflow_start(project_id)
     
     # Ejecutar pipeline en background
-    asyncio.create_task(_run_pipeline(project_id, render_config or {}, concurrency, accounts or []))
+    asyncio.create_task(_run_pipeline(project_id, render_config or {}, concurrency, accounts or [], model))
     
     return project_id
 
 
-async def _run_pipeline(project_id: str, render_config: dict, concurrency: int = 2, accounts: list[str] | None = None):
+async def _run_pipeline(project_id: str, render_config: dict, concurrency: int = 2, accounts: list[str] | None = None, model: str = "NARWHAL"):
     """Ejecutar el pipeline completo"""
     workflow = _active_workflows.get(project_id)
     if not workflow:
@@ -208,6 +209,7 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
                     str(project_path),
                     pending,
                     batch_id,
+                    model=model,
                     concurrency=concurrency,
                     selected_accounts=accounts,
                     reference_image_ids=ref_ids,

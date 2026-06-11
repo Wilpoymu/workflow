@@ -163,8 +163,7 @@ class ForgeBridge:
                 },
                 "seed": random.randint(1, 999999),
             }
-            if image_inputs:
-                req["imageInputs"] = image_inputs
+            req["imageInputs"] = image_inputs or []
             body = {
                 "clientContext": {
                     "projectId": flow_project_id,

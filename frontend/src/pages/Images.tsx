@@ -36,6 +36,11 @@ export default function Images() {
     const saved = sessionStorage.getItem(`${storageKey}-concurrency`)
     return saved ? Number(saved) : 2
   })
+  const [model, setModel] = useState<string>(() => {
+    if (!storageKey) return "NARWHAL"
+    return sessionStorage.getItem(`${storageKey}-model`) ?? "NARWHAL"
+  })
+  const MODELS = ["NARWHAL", "GEM_PIX_2", "PINHOLE"]
   const [loading, setLoading] = useState(true)
   const [projectTitle, setProjectTitle] = useState("")
   const [generating, setGenerating] = useState(false)
@@ -92,6 +97,11 @@ export default function Images() {
     if (!storageKey) return
     sessionStorage.setItem(`${storageKey}-concurrency`, String(concurrency))
   }, [concurrency, storageKey])
+
+  useEffect(() => {
+    if (!storageKey) return
+    sessionStorage.setItem(`${storageKey}-model`, model)
+  }, [model, storageKey])
 
   useEffect(() => {
     if (!storageKey) return
@@ -166,6 +176,7 @@ export default function Images() {
       const res = await api.generateImages(projectId, {
         concurrency,
         accounts: Array.from(selectedAccounts),
+        model,
       })
       setBatchId(res.batch_id)
       setStats(prev => ({ ...prev, total: res.total }))
@@ -312,6 +323,38 @@ export default function Images() {
             </div>
             <p className="text-xs text-gray-600 mt-2">
               {connectedAccounts.length} account{connectedAccounts.length > 1 ? "s" : ""} × {concurrency} prompts each = up to {connectedAccounts.length * concurrency} total in parallel
+            </p>
+          </div>
+        )}
+
+        {/* Model Selector */}
+        {connectedAccounts.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-400" />
+                <span className="text-sm text-gray-400">Model:</span>
+              </div>
+              <div className="flex gap-1 bg-surface-hover rounded-lg p-0.5">
+                {MODELS.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setModel(m)}
+                    className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all ${
+                      model === m
+                        ? "bg-accent/20 text-accent border border-accent/30"
+                        : "text-gray-500 hover:text-white"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-gray-600 mt-2">
+              {model === "NARWHAL" ? "Default model — good quality, fast" :
+               model === "GEM_PIX_2" ? "Gemini Pixel 2 — higher quality, more detailed" :
+               "PINHOLE — alternative model"}
             </p>
           </div>
         )}

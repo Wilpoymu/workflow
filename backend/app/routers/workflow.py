@@ -20,6 +20,7 @@ class WorkflowConfig(BaseModel):
     """Configuración opcional para el workflow"""
     concurrency: int = 2
     accounts: list[str] | None = None
+    model: str = "NARWHAL"
     render: Optional[dict] = None
 
 
@@ -56,9 +57,10 @@ async def start_workflow(project_id: str, config: WorkflowConfig = WorkflowConfi
     try:
         await orchestrator.start_workflow(
             project_id,
-            config.render,
+            render_config=config.render,
             concurrency=config.concurrency,
             accounts=config.accounts,
+            model=config.model,
         )
         return {"project_id": project_id, "status": "started"}
     except RuntimeError as e:

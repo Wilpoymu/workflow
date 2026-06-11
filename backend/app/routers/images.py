@@ -20,10 +20,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/projects/{project_id}/images", tags=["images"])
 
 
+FLOW_MODELS = ["NARWHAL", "GEM_PIX_2", "PINHOLE"]
+
 class GenerateRequest(BaseModel):
     concurrency: int = 2
     accounts: list[str] | None = None
     reference_image_ids: list[str] | None = None
+    model: str = "NARWHAL"
 
 
 class ReferenceInfo(BaseModel):
@@ -164,12 +167,16 @@ async def generate_images(project_id: str, config: GenerateRequest = GenerateReq
             if len(raw) <= 5 * 1024 * 1024:  # 5MB limit
                 ref_b64_list.append(base64.b64encode(raw).decode("ascii"))
 
+    if config.model not in FLOW_MODELS:
+        raise HTTPException(400, f"Invalid model '{config.model}'. Valid: {', '.join(FLOW_MODELS)}")
+
     batch_id = uuid.uuid4().hex[:8]
     total = await bridge.dispatch(
         project_id,
         project.base_dir,
         pending,
         batch_id,
+        model=config.model,
         concurrency=config.concurrency,
         selected_accounts=config.accounts,
         reference_image_ids=config.reference_image_ids,
