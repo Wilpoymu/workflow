@@ -211,10 +211,10 @@ export default function Dashboard() {
       {/* Channel Tabs */}
       <div className="flex items-center gap-1 mb-8 p-1 bg-surface-card rounded-lg border border-border w-fit overflow-x-auto max-w-full">
         {channels.map((ch) => (
-          <div key={ch.id} className="group relative">
+          <div key={ch.id} className="flex items-center gap-0 group">
             <button
               onClick={() => setActiveChannel(ch.id)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-l-md text-sm font-medium transition-all duration-150 ${
                 activeChannel === ch.id
                   ? "bg-accent/10 text-accent shadow-sm"
                   : "text-gray-500 hover:text-gray-300 hover:bg-surface-hover"
@@ -225,7 +225,11 @@ export default function Dashboard() {
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); setShowDeleteChannel(ch.id) }}
-              className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full bg-surface-card border border-border opacity-0 group-hover:opacity-100 transition-opacity text-gray-600 hover:text-red-400"
+              className={`px-1.5 py-1.5 rounded-r-md text-sm transition-all duration-150 opacity-0 group-hover:opacity-100 ${
+                activeChannel === ch.id
+                  ? "bg-accent/10 text-gray-600 hover:text-red-400"
+                  : "text-gray-700 hover:text-red-400 hover:bg-surface-hover"
+              }`}
               title="Delete channel"
             >
               <Trash2 className="w-3 h-3" />
