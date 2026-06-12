@@ -78,6 +78,7 @@ export interface ImageInfo {
   fragment_id: number
   url: string
   status: string
+  error?: string
 }
 
 export interface JobStatus {

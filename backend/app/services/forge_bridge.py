@@ -14,7 +14,7 @@ from app.core.sse import sse_manager
 
 logger = logging.getLogger(__name__)
 
-SaveImageFn = Callable[[str, int, dict], Awaitable[None]]
+SaveImageFn = Callable[[str, int, dict], Awaitable[bool]]
 
 
 FLOW_UPLOAD_URL = "https://aisandbox-pa.googleapis.com/v1/flow/uploadImage"
@@ -367,14 +367,40 @@ class ForgeBridge:
             state["results"][rid] = r
             fid = int(rid)
 
-            if ok:
+            if ok and self._save_image:
+                saved = await self._save_image(state["project_id"], fid, parsed)
+                if saved:
+                    state["done"] += 1
+                    await sse_manager.emit_result(state["project_id"], batch_id, fid, "done")
+                else:
+                    state["failed"] += 1
+                    await sse_manager.emit_result(state["project_id"], batch_id, fid, "failed",
+                                                   error="Flow returned 200 but no image data")
+                    logger.warning("[BRIDGE] Fragment %s: HTTP 200 but save_image failed", rid)
+            elif ok:
                 state["done"] += 1
-                if self._save_image:
-                    await self._save_image(state["project_id"], fid, parsed)
                 await sse_manager.emit_result(state["project_id"], batch_id, fid, "done")
             else:
                 state["failed"] += 1
-                await sse_manager.emit_result(state["project_id"], batch_id, fid, "failed")
+                # Extract human-readable error from Flow response
+                err_msg = ""
+                try:
+                    if isinstance(parsed, dict):
+                        err = parsed.get("error", {})
+                        err_msg = err.get("message", "") or json.dumps(err)[:200]
+                except Exception:
+                    err_msg = str(raw_data)[:200]
+                await sse_manager.emit_result(state["project_id"], batch_id, fid, "failed", error=err_msg)
+                # Log full response for diagnosis
+                err_body = ""
+                try:
+                    if isinstance(raw_data, str) and len(raw_data) < 2000:
+                        err_body = raw_data
+                    elif isinstance(parsed, dict):
+                        err_body = json.dumps(parsed)[:2000]
+                except Exception:
+                    err_body = str(raw_data)[:500]
+                logger.error("[BRIDGE] Fragment %s FAILED: HTTP %s response=%.2000s", rid, status, err_body)
 
             progress = (state["done"] + state["failed"]) / state["total"] * 100
             await sse_manager.emit_progress(state["project_id"], batch_id, fid, progress)

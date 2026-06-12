@@ -11,9 +11,11 @@ interface FragmentListProps {
   selectedId: number | null
   onSelect: (id: number) => void
   onSave: (id: number, data: { original_text?: string; image_prompt?: string }) => void
+  onRegeneratePrompt?: (fragmentId: number) => void
+  generatingPrompts?: boolean
 }
 
-export default function FragmentList({ fragments, selectedId, onSelect, onSave }: FragmentListProps) {
+export default function FragmentList({ fragments, selectedId, onSelect, onSave, onRegeneratePrompt, generatingPrompts }: FragmentListProps) {
   const withPrompt = fragments.filter(f => f.image_prompt && f.image_prompt.trim())
   const pending = fragments.length - withPrompt.length
 
@@ -76,6 +78,8 @@ export default function FragmentList({ fragments, selectedId, onSelect, onSave }
             key={selectedId}
             fragment={fragments.find((f) => f.fragment_id === selectedId)!}
             onSave={(data) => onSave(selectedId, data)}
+            onRegeneratePrompt={onRegeneratePrompt}
+            generatingPrompts={generatingPrompts}
           />
         )}
       </div>
@@ -86,9 +90,13 @@ export default function FragmentList({ fragments, selectedId, onSelect, onSave }
 function FragmentEditor({
   fragment,
   onSave,
+  onRegeneratePrompt,
+  generatingPrompts,
 }: {
   fragment: FragmentListProps["fragments"][number]
   onSave: (data: { original_text?: string; image_prompt?: string }) => void
+  onRegeneratePrompt?: (fragmentId: number) => void
+  generatingPrompts?: boolean
 }) {
   const [text, setText] = useState(fragment.original_text)
   const [prompt, setPrompt] = useState(fragment.image_prompt)
@@ -128,10 +136,23 @@ function FragmentEditor({
             Image Prompt
           </label>
           {fragment.image_prompt && fragment.image_prompt.trim() && (
-            <span className="flex items-center gap-1 text-[11px] text-green-500">
-              <CheckCircle2 className="w-3 h-3" />
-              Generated
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1 text-[11px] text-green-500">
+                <CheckCircle2 className="w-3 h-3" />
+                Generated
+              </span>
+              {onRegeneratePrompt && (
+                <button
+                  className="flex items-center gap-1 text-[10px] text-gray-600 hover:text-accent transition-colors"
+                  onClick={() => onRegeneratePrompt(fragment.fragment_id)}
+                  disabled={generatingPrompts}
+                  title="Regenerate this prompt"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Regenerate
+                </button>
+              )}
+            </div>
           )}
         </div>
         <textarea

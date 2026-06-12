@@ -26,9 +26,9 @@ class SSEEventManager:
             "batchId": batch_id, "fragmentId": fragment_id, "progress": progress,
         })
 
-    async def emit_result(self, project_id: str, batch_id: str, fragment_id: int, status: str, url: str = ""):
+    async def emit_result(self, project_id: str, batch_id: str, fragment_id: int, status: str, url: str = "", error: str = ""):
         await self.emit(project_id, "item_result", {
-            "batchId": batch_id, "fragmentId": fragment_id, "status": status, "url": url,
+            "batchId": batch_id, "fragmentId": fragment_id, "status": status, "url": url, "error": error,
         })
 
     async def emit_complete(self, project_id: str, batch_id: str, stats: dict):

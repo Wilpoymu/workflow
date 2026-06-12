@@ -1,13 +1,25 @@
 import json
 import logging
+import math
+import os
 import re
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
+
+ProgressCB = Callable[[float, str, dict[str, Any] | None], None] | None
 
 from app.config import settings
 from app.models.transcript import SrtBlock, TranscriptionSegment, WhisperWord
 
 logger = logging.getLogger(__name__)
+
+# Audio más largo que esto se parte en fragmentos antes de transcribir
+_MAX_CHUNK_SECONDS = 1200  # 20 minutos
+
+_SUBPROCESS_FLAGS = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
 
 
 # ── SRT generation (sentence-based, same as Transcriptor) ─────────
@@ -247,47 +259,129 @@ def align_text(whisper_words: list[WhisperWord], text_content: str) -> list[Whis
     return result
 
 
+# ── Audio chunking —──────────────────────────────────────────────────
+
+
+def _get_audio_duration_ffprobe(audio_path: str) -> float:
+    cmd = [
+        'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+        '-of', 'default=noprint_wrappers=1:nokey=1', audio_path,
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, creationflags=_SUBPROCESS_FLAGS)
+    if proc.returncode != 0 or not proc.stdout.strip():
+        raise RuntimeError(f"ffprobe failed for {audio_path}: {proc.stderr.strip()}")
+    return float(proc.stdout.strip())
+
+
+def _split_audio(audio_path: str, chunk_sec: int, work_dir: str) -> list[str]:
+    duration = _get_audio_duration_ffprobe(audio_path)
+    if duration <= chunk_sec:
+        return [audio_path]
+
+    n_chunks = math.ceil(duration / chunk_sec)
+    paths: list[str] = []
+    base = Path(audio_path)
+    stem = base.stem
+    ext = base.suffix
+
+    for i in range(n_chunks):
+        start = i * chunk_sec
+        chunk_path = os.path.join(work_dir, f"{stem}_chunk{i:04d}{ext}")
+        cmd = [
+            'ffmpeg', '-y',
+            '-i', audio_path,
+            '-ss', str(start),
+            '-t', str(chunk_sec),
+            '-c', 'copy',
+            chunk_path,
+        ]
+        proc = subprocess.run(cmd, capture_output=True, creationflags=_SUBPROCESS_FLAGS)
+        if proc.returncode != 0:
+            raise RuntimeError(f"Audio chunking failed at chunk {i}: {proc.stderr.decode(errors='replace')[:200]}")
+        paths.append(chunk_path)
+
+    logger.info("[WHISPER] Audio split into %d chunks (%.0fs each)", n_chunks, chunk_sec)
+    return paths
+
+
+def _merge_chunks(segments: list[TranscriptionSegment]) -> TranscriptionSegment:
+    all_words: list[WhisperWord] = []
+    full_texts: list[str] = []
+
+    for seg in segments:
+        all_words.extend(seg.words)
+        full_texts.append(seg.text)
+
+    return TranscriptionSegment(
+        language_code=segments[0].language_code,
+        language_probability=segments[0].language_probability,
+        text=" ".join(full_texts),
+        words=all_words,
+    )
+
+
+# ── Device detection (NVIDIA → CPU) ──────────────────────────────────
+
+
+def _ensure_cuda_dlls_on_path():
+    if os.name != "nt":
+        return
+    try:
+        import nvidia.cublas
+        pkg_dir = nvidia.cublas.__path__[0]
+        bin_dir = os.path.join(pkg_dir, "bin")
+        if os.path.isdir(bin_dir) and bin_dir not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = bin_dir + os.pathsep + os.environ.get("PATH", "")
+            logger.info("[WHISPER] Added %s to PATH (CUDA DLLs)", bin_dir)
+    except Exception:
+        pass
+
+
+def _detect_whisper_device() -> tuple[str, str]:
+    _ensure_cuda_dlls_on_path()
+    try:
+        import ctranslate2
+        count = ctranslate2.get_cuda_device_count()
+        if count > 0:
+            logger.info("[WHISPER] CUDA detected (%d device(s)) — using GPU", count)
+            return "cuda", "float16"
+    except Exception:
+        pass
+
+    logger.info("[WHISPER] No CUDA device — falling back to CPU (int8)")
+    return "cpu", "int8"
+
+
 # ── Core transcription ─────────────────────────────────────────────
 
 
-def transcribe_audio(
+def _transcribe_single(
+    model,
     audio_path: str,
-    progress_callback: Callable[[float, str], None] | None = None,
+    chunk_offset: float,
+    progress_callback: ProgressCB = None,
+    progress_start: float = 0.0,
+    progress_end: float = 1.0,
 ) -> TranscriptionSegment:
-    try:
-        from faster_whisper import WhisperModel
-    except ImportError:
-        logger.error("faster-whisper not installed")
-        raise RuntimeError("faster-whisper not installed. Run: pip install faster-whisper")
-
-    if progress_callback:
-        progress_callback(0.1, "Loading model...")
-
-    model = WhisperModel(
-        settings.whisper_model_size,
-        device=settings.whisper_device,
-        compute_type=settings.whisper_compute_type,
-    )
-
-    if progress_callback:
-        progress_callback(0.3, "Transcribing audio...")
-
     segments_gen, info = model.transcribe(
         audio_path,
         word_timestamps=True,
         language=None,
-        beam_size=5,
+        beam_size=1,
+        vad_filter=True,
+        vad_parameters=dict(min_silence_duration_ms=500),
     )
-
-    logger.info(f"Detected language: {info.language} (prob: {info.language_probability:.2f})")
 
     all_words: list[WhisperWord] = []
     last_end: float = 0.0
+    duration = info.duration or 0.0
 
     for seg in segments_gen:
-        if progress_callback:
-            progress = 0.3 + 0.6 * (seg.end / info.duration) if info.duration > 0 else 0.0
-            progress_callback(progress, f"Transcribing... {int(progress * 100)}%")
+        if progress_callback and duration > 0:
+            p = progress_start + (progress_end - progress_start) * (seg.end / duration)
+            progress_callback(p, "Transcribing audio", {
+                "stage": "transcribing",
+            })
 
         if not seg.words:
             continue
@@ -305,13 +399,13 @@ def transcribe_audio(
                 gap_end = start
                 if gap_end > gap_start:
                     all_words.append(WhisperWord(
-                        text=" ", start=gap_start, end=gap_end, type="spacing",
+                        text=" ", start=gap_start + chunk_offset, end=gap_end + chunk_offset, type="spacing",
                     ))
 
             all_words.append(WhisperWord(
                 text=text,
-                start=start,
-                end=end,
+                start=start + chunk_offset,
+                end=end + chunk_offset,
                 type="word",
                 speaker_id="speaker_0",
                 logprob=round(w.probability, 7) if w.probability is not None else 0.0,
@@ -320,15 +414,139 @@ def transcribe_audio(
 
     full_text = " ".join(w.text for w in all_words if w.type == "word")
 
-    if progress_callback:
-        progress_callback(0.95, "Finalizing...")
-
     return TranscriptionSegment(
         language_code=info.language or "es",
         language_probability=info.language_probability,
         text=full_text,
         words=all_words,
     )
+
+
+MODEL_SIZES = ["tiny", "base", "small", "medium", "large-v3"]
+
+
+def transcribe_audio(
+    audio_path: str,
+    progress_callback: ProgressCB = None,
+    model_size: str | None = None,
+) -> TranscriptionSegment:
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError:
+        logger.error("faster-whisper not installed")
+        raise RuntimeError("faster-whisper not installed. Run: pip install faster-whisper")
+
+    dur_str = ""
+    try:
+        dur = _get_audio_duration_ffprobe(audio_path)
+        m, s = divmod(int(dur), 60)
+        h, m = divmod(m, 60)
+        dur_str = f"{h}h {m}m {s}s" if h else f"{m}m {s}s"
+    except Exception:
+        pass
+
+    if progress_callback:
+        msg = f"Checking audio... {dur_str}" if dur_str else "Checking audio duration..."
+        progress_callback(0.02, msg, {"stage": "checking", "audio_duration_sec": dur})
+
+    # Partir audio largo en fragmentos para evitar OOM
+    work_dir = tempfile.mkdtemp(prefix="whisper_chunks_")
+    try:
+        chunk_paths = _split_audio(audio_path, _MAX_CHUNK_SECONDS, work_dir)
+    except Exception:
+        chunk_paths = [audio_path]
+
+    model_name = model_size if model_size in MODEL_SIZES else settings.whisper_model_size
+    device, compute_type = _detect_whisper_device()
+
+    # Intentar GPU; si falta cublas/cuda, caer a CPU automáticamente
+    for attempt in range(2):
+        if progress_callback:
+            progress_callback(0.05, f"Loading {model_name} on {device} ({compute_type})...", {
+                "stage": "loading",
+                "model": model_name,
+                "device": device,
+                "compute_type": compute_type,
+            })
+
+        try:
+            model = WhisperModel(model_name, device=device, compute_type=compute_type)
+            break
+        except (OSError, RuntimeError) as e:
+            err_str = str(e).lower()
+            if device == "cuda" and ("cublas" in err_str or "cuda" in err_str or "driver" in err_str):
+                logger.warning("[WHISPER] CUDA load failed (%s) — falling back to CPU", e)
+                device, compute_type = "cpu", "int8"
+                continue
+            raise
+
+    logger.info("[WHISPER] device=%s compute_type=%s model=%s chunks=%d",
+                device, compute_type, model_name, len(chunk_paths))
+
+    try:
+        n_chunks = len(chunk_paths)
+
+        if n_chunks == 1:
+            result = _transcribe_single(model, chunk_paths[0], 0.0, progress_callback, 0.1, 0.95)
+            if progress_callback:
+                progress_callback(0.95, "Finalizing...", {"stage": "finalizing"})
+            return result
+
+        # Múltiples fragmentos
+        if progress_callback:
+            progress_callback(0.08, f"Splitting audio into {n_chunks} chunks ({_MAX_CHUNK_SECONDS // 60}min each)...", {
+                "stage": "splitting",
+                "chunks_total": n_chunks,
+                "chunk_duration_sec": _MAX_CHUNK_SECONDS,
+            })
+
+        chunk_segments: list[TranscriptionSegment] = []
+        chunk_dur = _get_audio_duration_ffprobe(chunk_paths[0]) if n_chunks > 0 else _MAX_CHUNK_SECONDS
+        time_offset = 0.0
+
+        for i, chunk_path in enumerate(chunk_paths):
+            if progress_callback:
+                cb_start = 0.1 + 0.8 * (i / n_chunks)
+                cb_end = 0.1 + 0.8 * ((i + 1) / n_chunks)
+            else:
+                cb_start = cb_end = 0.0
+
+            if progress_callback:
+                progress_callback(cb_start, f"Chunk {i + 1}/{n_chunks} — transcribing...", {
+                    "stage": "chunk",
+                    "model": model_name,
+                    "device": device,
+                    "compute_type": compute_type,
+                    "chunk_current": i + 1,
+                    "chunks_total": n_chunks,
+                })
+
+            logger.info("[WHISPER] Transcribing chunk %d/%d: %s", i + 1, n_chunks, chunk_path)
+            seg = _transcribe_single(model, chunk_path, time_offset,
+                                     progress_callback, cb_start, cb_end)
+            chunk_segments.append(seg)
+            time_offset += chunk_dur
+
+        if progress_callback:
+            progress_callback(0.92, f"Merging {n_chunks} chunks...", {"stage": "merging"})
+
+        result = _merge_chunks(chunk_segments)
+
+        if progress_callback:
+            lang = result.language_code or "es"
+            prob = result.language_probability
+            prob_safe = round(prob, 4) if prob is not None and not (prob != prob) else None
+            prob_str = f"{prob_safe:.0%}" if prob_safe and prob_safe > 0 else ""
+            progress_callback(0.95, f"Detected: {lang} {prob_str}".strip(), {
+                "stage": "finalizing",
+                "language": lang,
+                "language_probability": prob_safe,
+                "word_count": len(result.words),
+            })
+
+        return result
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
 
 
 # ── Save outputs (Transcriptor-compatible format) ──────────────────

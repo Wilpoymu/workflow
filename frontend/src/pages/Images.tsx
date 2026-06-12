@@ -131,7 +131,7 @@ export default function Images() {
       setImages((prev) =>
         prev.map((img) =>
           img.fragment_id === data.fragmentId
-            ? { ...img, status: data.status, url: data.url || img.url }
+            ? { ...img, status: data.status, url: data.url || img.url, error: data.error || "" }
             : img,
         ),
       )
@@ -558,6 +558,11 @@ export default function Images() {
                       <>
                         <XCircle className="w-8 h-8 text-red-500/40" />
                         <span className="text-[11px] text-red-500/60">Failed</span>
+                        {img.error && (
+                          <span className="text-[9px] text-red-500/40 text-center px-2 leading-tight" title={img.error}>
+                            {img.error.length > 70 ? img.error.slice(0, 70) + "…" : img.error}
+                          </span>
+                        )}
                         <button
                           onClick={() => handleRegenerate(img.fragment_id)}
                           disabled={generating}

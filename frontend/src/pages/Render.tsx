@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useParams } from "react-router-dom"
-import { Video, Download, Play, AlertCircle, CheckCircle, Check } from "lucide-react"
+import { Video, Download, Play, AlertCircle, CheckCircle, Check, RefreshCw, Trash2 } from "lucide-react"
 import PageHeader from "../components/PageHeader"
 import Card from "../components/Card"
 import ProgressBar from "../components/ProgressBar"
@@ -119,6 +119,21 @@ export default function Render() {
     }
   }
 
+  const handleDeleteRender = async () => {
+    if (!projectId) return
+    try {
+      await api.deleteRender(projectId)
+      setHasRender(false)
+      setFileSize(0)
+      setStatus("idle")
+      setProgress(0)
+      setMessage("")
+      toast("Render deleted", "success")
+    } catch {
+      toast("Failed to delete render", "error")
+    }
+  }
+
   const handleDownload = () => {
     if (!projectId) return
     window.open(api.renderDownloadUrl(projectId), "_blank")
@@ -145,21 +160,40 @@ export default function Render() {
         description="Generate final video with zoom-pan effects and synchronized audio"
         backTo={`/editor/${projectId}`}
         actions={
-          status === "done" ? (
-            <button className="btn-primary" onClick={handleDownload}>
-              <Download className="w-4 h-4" />
-              Download Video
-            </button>
-          ) : (
+          <div className="flex items-center gap-2">
+            {hasRender && (
+              <>
+                <button className="btn-secondary text-xs" onClick={handleDownload}>
+                  <Download className="w-3.5 h-3.5" />
+                  Download
+                </button>
+                <button
+                  className="btn-secondary text-xs !text-red-400 hover:!bg-red-500/10"
+                  onClick={handleDeleteRender}
+                  title="Delete current render"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
             <button
               className="btn-primary"
               onClick={handleStartRender}
               disabled={status === "running"}
             >
-              <Play className="w-4 h-4" />
-              {status === "running" ? "Rendering..." : "Start Render"}
+              {status === "running" ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Rendering...
+                </>
+              ) : (
+                <>
+                  {hasRender ? <RefreshCw className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  {hasRender ? "Re-render" : "Start Render"}
+                </>
+              )}
             </button>
-          )
+          </div>
         }
       />
 

@@ -580,32 +580,48 @@ async def render_kenburns_video(
             if progress_callback:
                 progress_callback(0.9, "Burning subtitles...")
 
-            tmp_srt = temp_dir / "subtitles.srt"
-            shutil.copy2(srt_file, tmp_srt)
-            sub_out = output_path.with_suffix('.tmp.mp4')
+            # Convert SRT to ASS for reliable rendering (like shorts module)
+            try:
+                from app.services.shorts_maker.subtitler import create_subtitle_ass
+                ass_path = temp_dir / "subtitles.ass"
+                srt_copy = temp_dir / "script.srt"
+                shutil.copy2(srt_file, srt_copy)
+                create_subtitle_ass(
+                    srt_copy,
+                    ass_path,
+                    video_width=config.width,
+                    video_height=config.height,
+                )
 
-            sub_cmd = [
-                'ffmpeg', '-y',
-                '-i', str(output_path),
-                '-vf', f"subtitles={str(tmp_srt).replace(chr(92), '/')}",
-            ]
-            sub_cmd.extend(hw_params)
-            sub_cmd.extend([
-                '-b:v', '4M', '-maxrate', '5M', '-bufsize', '5M',
-                '-profile:v', 'high', '-level', '4.0',
-            ])
-            if audio_file:
-                sub_cmd.extend(['-c:a', 'copy'])
-            sub_cmd.extend(['-pix_fmt', 'yuv420p', str(sub_out)])
+                sub_out = output_path.with_suffix('.tmp.mp4')
+                escaped_ass = str(ass_path).replace("\\", "/").replace(":", "\\:")
 
-            ret, _, sub_err = await loop.run_in_executor(None, _run_ffmpeg, sub_cmd)
+                sub_cmd = [
+                    'ffmpeg', '-y',
+                    '-i', str(output_path),
+                    '-vf', f"ass='{escaped_ass}'",
+                ]
+                sub_cmd.extend(hw_params)
+                sub_cmd.extend([
+                    '-b:v', '4M', '-maxrate', '5M', '-bufsize', '5M',
+                    '-profile:v', 'high', '-level', '4.0',
+                ])
+                if audio_file:
+                    sub_cmd.extend(['-c:a', 'copy'])
+                sub_cmd.extend(['-pix_fmt', 'yuv420p', str(sub_out)])
 
-            if ret == 0:
-                output_path.unlink()
-                sub_out.rename(output_path)
-                logger.info("[RENDER] Subtitles burned successfully")
-            else:
-                logger.warning("[RENDER] Subtitles failed: %.200s", sub_err)
+                ret, _, sub_err = await loop.run_in_executor(None, _run_ffmpeg, sub_cmd)
+
+                if ret == 0:
+                    output_path.unlink()
+                    sub_out.rename(output_path)
+                    logger.info("[RENDER] Subtitles burned successfully (ASS)")
+                else:
+                    logger.warning("[RENDER] Subtitles failed: %.200s", sub_err)
+            except Exception as e:
+                logger.warning("[RENDER] Subtitles setup failed: %s", e)
+        else:
+            logger.warning("[RENDER] Subtitles enabled but no script.srt found in %s", audio_dir)
 
     shutil.rmtree(temp_dir, ignore_errors=True)
 

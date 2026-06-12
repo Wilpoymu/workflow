@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   Plus, FolderOpen, Play, ArrowRight, LayoutGrid,
-  Image, Mic, Video, Zap, FileEdit, Search,
+  Image, Mic, Video, Zap, FileEdit, Search, Trash2,
 } from "lucide-react"
 import PageHeader from "../components/PageHeader"
 import Card from "../components/Card"
@@ -41,6 +41,7 @@ export default function Dashboard() {
 
   const [showCreateProject, setShowCreateProject] = useState(false)
   const [showCreateChannel, setShowCreateChannel] = useState(false)
+  const [showDeleteChannel, setShowDeleteChannel] = useState<string | null>(null)
   const [projectTopic, setProjectTopic] = useState("")
   const [newProjectTitle, setNewProjectTitle] = useState("")
   const [newChannelName, setNewChannelName] = useState("")
@@ -121,6 +122,20 @@ export default function Dashboard() {
     }
   }
 
+  const handleDeleteChannel = async (channelId: string) => {
+    try {
+      await api.deleteChannel(channelId)
+      toast("Channel deleted", "success")
+      setShowDeleteChannel(null)
+      await loadAll()
+      if (activeChannel === channelId) {
+        setActiveChannel(null)
+      }
+    } catch {
+      toast("Failed to delete channel", "error")
+    }
+  }
+
   const handleCreateChannel = async () => {
     if (!newChannelName.trim() || !newChannelPath.trim()) return
     try {
@@ -196,18 +211,30 @@ export default function Dashboard() {
       {/* Channel Tabs */}
       <div className="flex items-center gap-1 mb-8 p-1 bg-surface-card rounded-lg border border-border w-fit overflow-x-auto max-w-full">
         {channels.map((ch) => (
-          <button
-            key={ch.id}
-            onClick={() => setActiveChannel(ch.id)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 ${
-              activeChannel === ch.id
-                ? "bg-accent/10 text-accent shadow-sm"
-                : "text-gray-500 hover:text-gray-300 hover:bg-surface-hover"
-            }`}
-          >
-            <LayoutGrid className="w-3.5 h-3.5" />
-            {ch.name}
-          </button>
+          <div key={ch.id} className="flex items-center gap-0 group">
+            <button
+              onClick={() => setActiveChannel(ch.id)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-l-md text-sm font-medium transition-all duration-150 ${
+                activeChannel === ch.id
+                  ? "bg-accent/10 text-accent shadow-sm"
+                  : "text-gray-500 hover:text-gray-300 hover:bg-surface-hover"
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              {ch.name}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowDeleteChannel(ch.id) }}
+              className={`px-1.5 py-1.5 rounded-r-md text-sm transition-all duration-150 opacity-0 group-hover:opacity-100 ${
+                activeChannel === ch.id
+                  ? "bg-accent/10 text-gray-600 hover:text-red-400"
+                  : "text-gray-700 hover:text-red-400 hover:bg-surface-hover"
+              }`}
+              title="Delete channel"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </div>
         ))}
       </div>
 
@@ -430,6 +457,29 @@ export default function Dashboard() {
               <Plus className="w-4 h-4" />Create
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Delete Channel Confirmation */}
+      <Modal
+        open={showDeleteChannel !== null}
+        onClose={() => setShowDeleteChannel(null)}
+        title="Delete Channel"
+      >
+        <p className="text-sm text-gray-300 mb-2">
+          Are you sure you want to delete <strong className="text-white">{channels.find(c => c.id === showDeleteChannel)?.name}</strong>?
+        </p>
+        <p className="text-xs text-gray-600 mb-6">
+          This only removes the channel from the database. Project folders on disk will not be affected.
+        </p>
+        <div className="flex justify-end gap-2">
+          <button className="btn-secondary" onClick={() => setShowDeleteChannel(null)}>Cancel</button>
+          <button
+            className="btn-primary !bg-red-600 !border-red-600 hover:!bg-red-700"
+            onClick={() => showDeleteChannel && handleDeleteChannel(showDeleteChannel)}
+          >
+            <Trash2 className="w-4 h-4" /> Delete
+          </button>
         </div>
       </Modal>
 
