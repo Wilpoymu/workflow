@@ -99,7 +99,10 @@ async def upload_audio(
 
 
 @router.post("/start")
-async def start_transcription(project_id: str):
+async def start_transcription(
+    project_id: str,
+    model_size: str = "small",
+):
     project = await project_service.get_project(project_id)
     if not project:
         raise HTTPException(404, "Project not found")
@@ -124,9 +127,9 @@ async def start_transcription(project_id: str):
     audio_path = audio_files[0]
     job_id = transcribe_job.create_job(project_id, str(audio_path))
 
-    asyncio.create_task(run_transcription(job_id, project_id, str(audio_path)))
+    asyncio.create_task(run_transcription(job_id, project_id, str(audio_path), model_size))
 
-    return {"job_id": job_id, "status": "started"}
+    return {"job_id": job_id, "status": "started", "model_size": model_size}
 
 
 @router.post("")
@@ -134,6 +137,7 @@ async def transcribe_endpoint(
     project_id: str,
     audio: UploadFile = File(...),
     text: UploadFile = File(None),
+    model_size: str = "small",
 ):
     project = await project_service.get_project(project_id)
     if not project:
@@ -153,23 +157,26 @@ async def transcribe_endpoint(
 
     job_id = transcribe_job.create_job(project_id, str(audio_path))
 
-    asyncio.create_task(run_transcription(job_id, project_id, str(audio_path)))
+    asyncio.create_task(run_transcription(job_id, project_id, str(audio_path), model_size))
 
-    return {"job_id": job_id, "status": "started"}
+    return {"job_id": job_id, "status": "started", "model_size": model_size}
 
 
-async def run_transcription(job_id: str, project_id: str, audio_path: str):
+async def run_transcription(job_id: str, project_id: str, audio_path: str, model_size: str = "small"):
     loop = asyncio.get_event_loop()
 
-    def progress_cb(progress: float, message: str):
+    def progress_cb(progress: float, message: str, detail: dict | None = None):
         transcribe_job.update_job(job_id, progress=progress, message=message, status="running")
+        payload: dict = {
+            "type": "progress",
+            "job_id": job_id,
+            "progress": progress,
+            "message": message,
+        }
+        if detail:
+            payload["detail"] = detail
         asyncio.run_coroutine_threadsafe(
-            transcribe_job.broadcast(project_id, {
-                "type": "progress",
-                "job_id": job_id,
-                "progress": progress,
-                "message": message,
-            }),
+            transcribe_job.broadcast(project_id, payload),
             loop
         )
 
@@ -179,7 +186,7 @@ async def run_transcription(job_id: str, project_id: str, audio_path: str):
             "type": "progress", "job_id": job_id, "progress": 0.05, "message": "Starting...",
         })
 
-        segment = await run_in_thread(transcribe_audio, audio_path, progress_cb)
+        segment = await run_in_thread(transcribe_audio, audio_path, progress_cb, model_size)
 
         project = await project_service.get_project(project_id)
         if not project:

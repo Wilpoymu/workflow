@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useParams } from "react-router-dom"
-import { Mic, Download, CheckCircle, AlertCircle, Play, FileAudio, FileText, FolderOpen } from "lucide-react"
+import { Mic, Download, CheckCircle, AlertCircle, Play, FileAudio, FileText, FolderOpen, Clock } from "lucide-react"
 import PageHeader from "../components/PageHeader"
 import DropZone from "../components/DropZone"
 import Card from "../components/Card"
@@ -41,10 +41,15 @@ export default function Transcribe() {
   const [jobStatus, setJobStatus] = useState<JobStatus>("idle")
   const [progress, setProgress] = useState(0)
   const [message, setMessage] = useState("")
+  const chipRef = useRef<{ label: string; value: string; color?: string }[]>([])
+  const [detailChips, setDetailChips] = useState<{ label: string; value: string; color?: string }[]>([])
   const [srtBlocks, setSrtBlocks] = useState<SrtBlock[]>([])
   const [wordCount, setWordCount] = useState(0)
   const [language, setLanguage] = useState("")
   const [projectTitle, setProjectTitle] = useState("")
+  const [elapsed, setElapsed] = useState(0)
+  const [modelSize, setModelSize] = useState("small")
+  const startTimeRef = useRef<number | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
@@ -86,6 +91,21 @@ export default function Transcribe() {
     return () => { wsRef.current?.close() }
   }, [])
 
+  // Elapsed timer
+  useEffect(() => {
+    if (jobStatus === "running") {
+      if (!startTimeRef.current) startTimeRef.current = Date.now()
+      const tick = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - startTimeRef.current!) / 1000))
+      }, 1000)
+      return () => clearInterval(tick)
+    } else if (jobStatus === "failed") {
+      startTimeRef.current = null
+      setElapsed(0)
+    }
+    // done: no reseteamos elapsed para que se vea la duración final
+  }, [jobStatus])
+
   // Polling fallback when running (WebSocket might not deliver)
   useEffect(() => {
     if (jobStatus !== "running") return
@@ -120,10 +140,34 @@ export default function Transcribe() {
         setProgress(data.progress * 100)
         setMessage(data.message)
         setJobStatus("running")
+
+        // Merge chips: each detail message trae solo campos nuevos,
+        // conservamos los que ya teníamos
+        const d = data.detail ?? {}
+        const merged: { label: string; value: string; color?: string }[] = [...chipRef.current]
+
+        const upsert = (label: string, value: string, color?: string) => {
+          const idx = merged.findIndex(c => c.label === label)
+          const entry = { label, value, color }
+          if (idx >= 0) merged[idx] = entry
+          else merged.push(entry)
+        }
+
+        if (d.model) upsert("model", d.model, "text-teal-400")
+        if (d.device) upsert("device", d.device, d.device === "cuda" ? "text-green-400" : "text-yellow-400")
+        if (d.compute_type) upsert("compute", d.compute_type)
+        if (d.chunks_total && d.chunks_total > 1) {
+          upsert("chunks", `${d.chunk_current ?? "?"}/${d.chunks_total}`, "text-blue-400")
+        }
+        if (d.language) upsert("lang", d.language, "text-purple-400")
+
+        chipRef.current = merged
+        setDetailChips(merged)
       } else if (data.type === "complete") {
         setJobStatus("done")
         setProgress(100)
         setMessage("Complete")
+        setDetailChips([])
         if (data.result) {
           setWordCount(data.result.word_count ?? 0)
           setLanguage(data.result.language ?? "")
@@ -135,6 +179,7 @@ export default function Transcribe() {
       } else if (data.type === "error") {
         setJobStatus("failed")
         setMessage(data.message)
+        setDetailChips([])
         toast(`Transcription failed: ${data.message}`, "error")
       }
     }
@@ -168,7 +213,7 @@ export default function Transcribe() {
     connectWS()
 
     try {
-      const res = await api.startTranscription(projectId)
+      const res = await api.startTranscription(projectId, modelSize)
       console.log("[Transcribe] Start response:", res)
       setJobStatus("running")
       setMessage("Starting transcription...")
@@ -290,15 +335,31 @@ export default function Transcribe() {
             </Card>
           )}
 
-          {/* Start Button */}
+          {/* Model Selector + Start Button */}
           {hasFilesReady && jobStatus !== "running" && jobStatus !== "done" && (
-            <button
-              className="btn-primary w-full flex items-center justify-center gap-2"
-              onClick={handleStartTranscription}
-            >
-              <Play className="w-4 h-4" />
-              Start Transcription
-            </button>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <label className="text-xs text-gray-500 font-body shrink-0">Model</label>
+                <select
+                  className="flex-1 px-3 py-1.5 text-xs font-mono bg-surface-hover border border-white/5 rounded-lg text-gray-300 focus:outline-none focus:border-accent/50"
+                  value={modelSize}
+                  onChange={(e) => setModelSize(e.target.value)}
+                >
+                  <option value="tiny">tiny (fastest)</option>
+                  <option value="base">base</option>
+                  <option value="small">small (default)</option>
+                  <option value="medium">medium (balanced)</option>
+                  <option value="large-v3">large-v3 (best accuracy)</option>
+                </select>
+              </div>
+              <button
+                className="btn-primary w-full flex items-center justify-center gap-2"
+                onClick={handleStartTranscription}
+              >
+                <Play className="w-4 h-4" />
+                Start Transcription
+              </button>
+            </div>
           )}
 
           <Card>
@@ -313,17 +374,27 @@ export default function Transcribe() {
                   jobStatus === "uploaded" ? "text-yellow-400" : "text-gray-400"
                 }`}>
                   {jobStatus === "idle" && "Idle"}
-                  {jobStatus === "uploaded" && "Ready to transcribe"}
-                  {jobStatus === "running" && "Running..."}
+                  {jobStatus === "uploaded" && "Ready"}
+                  {jobStatus === "running" && "Running"}
                   {jobStatus === "done" && "Complete"}
                   {jobStatus === "failed" && "Failed"}
                 </span>
               </div>
 
               {jobStatus === "running" && (
-                <div className="space-y-2">
-                  <ProgressBar progress={progress} />
-                  <p className="text-xs text-gray-500 font-body">{message}</p>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs text-gray-500 font-mono">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>
+                      {String(Math.floor(elapsed / 60)).padStart(2, "0")}:
+                      {String(elapsed % 60).padStart(2, "0")}
+                    </span>
+                  </div>
+                  <ProgressBar
+                    progress={progress}
+                    label={message}
+                    chips={detailChips.length > 0 ? detailChips : undefined}
+                  />
                 </div>
               )}
 
@@ -340,6 +411,14 @@ export default function Transcribe() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500 font-body">Segments</span>
                     <span className="text-gray-300 font-mono text-xs">{srtBlocks.length}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500 font-body">Duration</span>
+                    <span className="text-gray-300 font-mono text-xs flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {String(Math.floor(elapsed / 60)).padStart(2, "0")}:
+                      {String(elapsed % 60).padStart(2, "0")}
+                    </span>
                   </div>
                 </>
               )}

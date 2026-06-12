@@ -147,9 +147,9 @@ export const api = {
     )
   },
 
-  startTranscription: (projectId: string) =>
-    request<{ job_id: string; status: string }>(
-      `/api/projects/${projectId}/transcribe/start`,
+  startTranscription: (projectId: string, modelSize?: string) =>
+    request<{ job_id: string; status: string; model_size: string }>(
+      `/api/projects/${projectId}/transcribe/start${modelSize ? `?model_size=${modelSize}` : ""}`,
       { method: "POST" },
     ),
 
