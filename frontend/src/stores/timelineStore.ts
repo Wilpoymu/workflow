@@ -198,28 +198,32 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
 
     const { track, clipIndex, clip } = found
     const MIN_DURATION = 0.5
-
-    let newTrimIn = clip.trim_in ?? 0
-    let newTrimOut = clip.trim_out ?? clip.duration ?? 0
+    let newStartTime = clip.start_time
+    let newDuration = clip.duration
 
     if (edge === "in") {
-      newTrimIn = Math.max(0, (clip.trim_in ?? 0) + deltaSec)
+      // Left edge: move start_time + adjust duration so left edge follows mouse
+      // LEFT drag (negative delta): start_time earlier, duration longer
+      // RIGHT drag (positive delta): start_time later, duration shorter
+      const maxLeft = clip.start_time // can't go before 0
+      const clampedDelta = deltaSec < 0 ? Math.max(-maxLeft, deltaSec) : deltaSec
+      newStartTime = clip.start_time + clampedDelta
+      newDuration = clip.duration - clampedDelta
     } else {
-      newTrimOut = (clip.trim_out ?? clip.duration ?? 0) + deltaSec
+      // Right edge: adjust duration only (right edge follows mouse)
+      newDuration = clip.duration + deltaSec
     }
 
-    const newDuration = newTrimOut - newTrimIn
-
-    // Minimum duration guard: clip must be at least 0.5s
+    // Minimum duration guard
     if (newDuration < MIN_DURATION || !isFinite(newDuration)) return
 
-    // Overlap prevention: when extending duration, don't overlap the next clip
-    if (newDuration > (clip.duration ?? 0)) {
-      const nextClip = track.clips[clipIndex + 1]
-      if (nextClip) {
-        const proposedEnd = clip.start_time + newDuration
-        if (proposedEnd > nextClip.start_time) return
-      }
+    // Overlap prevention
+    const prevClip = track.clips[clipIndex - 1]
+    const nextClip = track.clips[clipIndex + 1]
+    if (prevClip && newStartTime < prevClip.start_time + prevClip.duration) return
+    if (nextClip) {
+      const proposedEnd = newStartTime + newDuration
+      if (proposedEnd > nextClip.start_time) return
     }
 
     const newTimeline: Timeline = {
@@ -228,7 +232,7 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
         ...track,
         clips: track.clips.map((c) =>
           c.id === clipId
-            ? { ...c, trim_in: newTrimIn, trim_out: newTrimOut, duration: newDuration }
+            ? { ...c, start_time: newStartTime, duration: newDuration }
             : c,
         ),
       })),
