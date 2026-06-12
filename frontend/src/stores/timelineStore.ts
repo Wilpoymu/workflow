@@ -199,22 +199,22 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
     const { track, clipIndex, clip } = found
     const MIN_DURATION = 0.5
 
-    let newTrimIn = clip.trim_in
-    let newTrimOut = clip.trim_out
+    let newTrimIn = clip.trim_in ?? 0
+    let newTrimOut = clip.trim_out ?? clip.duration ?? 0
 
     if (edge === "in") {
-      newTrimIn = Math.max(0, clip.trim_in + deltaSec)
+      newTrimIn = Math.max(0, (clip.trim_in ?? 0) + deltaSec)
     } else {
-      newTrimOut = clip.trim_out + deltaSec
+      newTrimOut = (clip.trim_out ?? clip.duration ?? 0) + deltaSec
     }
 
     const newDuration = newTrimOut - newTrimIn
 
     // Minimum duration guard: clip must be at least 0.5s
-    if (newDuration < MIN_DURATION) return
+    if (newDuration < MIN_DURATION || !isFinite(newDuration)) return
 
     // Overlap prevention: when extending duration, don't overlap the next clip
-    if (newDuration > clip.duration) {
+    if (newDuration > (clip.duration ?? 0)) {
       const nextClip = track.clips[clipIndex + 1]
       if (nextClip) {
         const proposedEnd = clip.start_time + newDuration

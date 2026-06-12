@@ -143,7 +143,7 @@ export default function ClipProperties() {
           <input
             type="number"
             className="w-20 px-2 py-1 text-xs bg-slate-800 rounded border border-slate-700 text-slate-200 text-right font-mono"
-            value={parseFloat(selectedClip.duration.toFixed(1))}
+            value={(selectedClip.duration && isFinite(selectedClip.duration)) ? parseFloat(selectedClip.duration.toFixed(1)) : 0}
             min={0.1}
             step={0.1}
             onChange={(e) => {
