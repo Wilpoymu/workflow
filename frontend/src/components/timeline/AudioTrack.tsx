@@ -1,4 +1,5 @@
 import type React from "react"
+import { useDraggable } from "@dnd-kit/core"
 import type { TimelineClip } from "../../types/timeline"
 
 // ─── Props ──────────────────────────────────────────────────────────
@@ -26,6 +27,10 @@ export default function AudioTrack({
   onSelect,
   onTrimStart,
 }: AudioTrackProps) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: clip.id,
+  })
+
   const duration = clip.duration ?? 0
   const width = Math.max(4, duration * pps)  // minimum 4px to stay clickable
   const barCount = Math.max(1, Math.min(Math.floor(width / 4), 100))
@@ -37,12 +42,23 @@ export default function AudioTrack({
     bars.push(h)
   }
 
+  const style: React.CSSProperties = {
+    left: `${clip.start_time * pps}px`,
+    width: `${width}px`,
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    zIndex: isDragging ? 50 : undefined,
+    opacity: isDragging ? 0.8 : undefined,
+  }
+
   return (
     <div
-      className={`absolute top-1 bottom-1 rounded overflow-hidden cursor-pointer bg-emerald-600/30
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className={`absolute top-1 bottom-1 rounded cursor-grab active:cursor-grabbing overflow-hidden bg-emerald-600/30
         ${isSelected ? "ring-2 ring-emerald-400" : ""}
-        transition-all duration-75`}
-      style={{ left: `${clip.start_time * pps}px`, width: `${width}px` }}
+        transition-colors duration-75`}
+      style={style}
       onClick={() => onSelect(clip.id)}
     >
       {/* ── SVG waveform bars ───────────────────────────────────── */}
@@ -67,6 +83,10 @@ export default function AudioTrack({
       {/* ── Trim handles ────────────────────────────────────────── */}
       <div
         className="absolute left-0 top-0 bottom-0 w-[6px] cursor-col-resize hover:bg-white/20 rounded-l transition-colors"
+        onPointerDown={(e) => {
+          // Stop pointer event propagation so dnd-kit doesn't intercept
+          e.stopPropagation()
+        }}
         onMouseDown={(e) => {
           e.stopPropagation()
           onTrimStart(clip.id, "in", e)
@@ -74,6 +94,10 @@ export default function AudioTrack({
       />
       <div
         className="absolute right-0 top-0 bottom-0 w-[6px] cursor-col-resize hover:bg-white/20 rounded-r transition-colors"
+        onPointerDown={(e) => {
+          // Stop pointer event propagation so dnd-kit doesn't intercept
+          e.stopPropagation()
+        }}
         onMouseDown={(e) => {
           e.stopPropagation()
           onTrimStart(clip.id, "out", e)

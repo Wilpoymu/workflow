@@ -261,6 +261,40 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
     })
   },
 
+  reorderClip: (clipId, trackId, newIndex) => {
+    const { timeline } = get()
+    if (!timeline) return
+
+    const trackIndex = timeline.tracks.findIndex((t) => t.id === trackId)
+    if (trackIndex === -1) return
+
+    const track = timeline.tracks[trackIndex]
+    const oldIndex = track.clips.findIndex((c) => c.id === clipId)
+    if (oldIndex === -1 || oldIndex === newIndex) return
+
+    // Reorder clips array
+    const newClips = [...track.clips]
+    const [moved] = newClips.splice(oldIndex, 1)
+    newClips.splice(newIndex, 0, moved)
+
+    // Recalculate sequential start_times
+    let cursor = 0
+    for (const clip of newClips) {
+      clip.start_time = cursor
+      cursor += clip.duration
+    }
+
+    const newTimeline: Timeline = {
+      ...timeline,
+      tracks: timeline.tracks.map((t, i) =>
+        i === trackIndex ? { ...t, clips: newClips } : t,
+      ),
+    }
+    newTimeline.duration = recalculateDuration(newTimeline)
+
+    set({ timeline: newTimeline })
+  },
+
   // ── Playhead & zoom ────────────────────────────────────────────
 
   setPlayhead: (timeSec) => {

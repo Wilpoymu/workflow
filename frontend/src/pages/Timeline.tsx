@@ -1,6 +1,8 @@
 import { useEffect, useCallback, useRef, useState } from "react"
 import { useParams } from "react-router-dom"
 import { Video, Save } from "lucide-react"
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
+import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core"
 import { useTimelineStore } from "../stores/timelineStore"
 import { api } from "../api/client"
 import TimelineTrack from "../components/timeline/TimelineTrack"
@@ -21,6 +23,7 @@ export default function TimelinePage() {
   const pixelsPerSecond = useTimelineStore((s) => s.pixelsPerSecond)
   const selectedClipId = useTimelineStore((s) => s.selectedClipId)
   const selectClip = useTimelineStore((s) => s.selectClip)
+  const reorderClip = useTimelineStore((s) => s.reorderClip)
   const trimClip = useTimelineStore((s) => s.trimClip)
   const splitClipAt = useTimelineStore((s) => s.splitClipAt)
   const setZoom = useTimelineStore((s) => s.setZoom)
@@ -34,6 +37,42 @@ export default function TimelinePage() {
     startX: number
   } | null>(null)
   const setPlayhead = useTimelineStore((s) => s.setPlayhead)
+
+  // ── DnD state ─────────────────────────────────────────────────────
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+  )
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveId(String(event.active.id))
+  }, [])
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setActiveId(null)
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+
+      const clipId = String(active.id)
+      if (!timeline) return
+      for (const track of timeline.tracks) {
+        const oldIdx = track.clips.findIndex((c) => c.id === clipId)
+        if (oldIdx === -1) continue
+        const newIdx = track.clips.findIndex((c) => c.id === String(over.id))
+        if (newIdx === -1 || oldIdx === newIdx) return
+        reorderClip(clipId, track.id, newIdx)
+        break
+      }
+    },
+    [timeline, reorderClip],
+  )
+
+  const handleDragCancel = useCallback(() => {
+    setActiveId(null)
+  }, [])
 
   // ── Local UI state ────────────────────────────────────────────────
   const [isExporting, setIsExporting] = useState(false)
@@ -314,27 +353,40 @@ export default function TimelinePage() {
             </div>
 
             {/* Tracks */}
-            {timeline.tracks.map((track) => {
-              if (track.type === "subtitle") {
+            <DndContext
+              sensors={sensors}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDragCancel={handleDragCancel}
+            >
+              {timeline.tracks.map((track) => {
+                if (track.type === "subtitle") {
+                  return (
+                    <SubtitleTrack
+                      key={track.id}
+                      track={track}
+                      pixelsPerSecond={pixelsPerSecond}
+                    />
+                  )
+                }
                 return (
-                  <SubtitleTrack
+                  <TimelineTrack
                     key={track.id}
                     track={track}
                     pixelsPerSecond={pixelsPerSecond}
+                    selectedClipId={selectedClipId}
+                    onSelectClip={selectClip}
+                    onTrimStart={handleTrimStart}
                   />
                 )
-              }
-              return (
-                <TimelineTrack
-                  key={track.id}
-                  track={track}
-                  pixelsPerSecond={pixelsPerSecond}
-                  selectedClipId={selectedClipId}
-                  onSelectClip={selectClip}
-                  onTrimStart={handleTrimStart}
-                />
-              )
-            })}
+              })}
+
+              <DragOverlay>
+                {activeId ? (
+                  <div className="w-40 h-12 rounded bg-blue-500/30 border-2 border-blue-400" />
+                ) : null}
+              </DragOverlay>
+            </DndContext>
 
             {/* Empty tracks notice */}
             {timeline.tracks.length === 0 && (
