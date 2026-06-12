@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { useParams } from "react-router-dom"
+import { useParams, useNavigate } from "react-router-dom"
 import { Video, Download, Play, AlertCircle, CheckCircle, Check, RefreshCw, Trash2 } from "lucide-react"
 import PageHeader from "../components/PageHeader"
 import Card from "../components/Card"
@@ -24,6 +24,7 @@ interface RenderConfig {
 
 export default function Render() {
   const { projectId } = useParams<{ projectId: string }>()
+  const navigate = useNavigate()
   const { toast } = useToast()
   const { setActiveProject } = useActiveProjectContext()
 
@@ -161,6 +162,17 @@ export default function Render() {
         backTo={`/editor/${projectId}`}
         actions={
           <div className="flex items-center gap-2">
+            <button
+              className="btn-secondary text-xs flex items-center gap-1.5"
+              onClick={() => navigate(`/timeline/${projectId}`)}
+              title="Open in Timeline Editor"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="4" y="4" width="16" height="16" rx="2" />
+                <path d="M9 8h1v8H9zm5 0h1v8h-1zm-3 0h1v8h-1z" />
+              </svg>
+              Timeline Editor
+            </button>
             {hasRender && (
               <>
                 <button className="btn-secondary text-xs" onClick={handleDownload}>

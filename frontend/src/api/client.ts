@@ -343,6 +343,63 @@ export const api = {
       selected: { profile_id: string | null; profile_label: string | null } | null
     }>("/api/bridge/gemini/status"),
 
+  // Timeline
+  getTimeline: (projectId: string) =>
+    request<{ ok: boolean; timeline?: import("../types/timeline").Timeline; message?: string }>(
+      `/api/projects/${projectId}/timeline`,
+    ),
+
+  saveTimeline: (projectId: string, timeline: import("../types/timeline").Timeline) =>
+    request<{ ok: boolean; message?: string }>(
+      `/api/projects/${projectId}/timeline`,
+      { method: "PUT", body: JSON.stringify(timeline) },
+    ),
+
+  exportTimeline: (projectId: string) =>
+    request<{ ok: boolean; message?: string; output?: string }>(
+      `/api/projects/${projectId}/timeline/export`,
+      { method: "POST" },
+    ),
+
+  /** Connect to SSE stream for timeline export progress events.
+   *  Backend event names:
+   *    - timeline_export_progress → { progress: number, message: string }
+   *    - timeline_export_complete → { output: string }
+   *    - timeline_export_error   → { message: string }
+   *  Returns the EventSource so the caller can close it. */
+  connectExportSSE: (
+    projectId: string,
+    handlers: {
+      onProgress?: (progress: number, message: string) => void
+      onComplete?: (output: string) => void
+      onError?: (message: string) => void
+    },
+  ) => {
+    const es = new EventSource(`/api/projects/${projectId}/stream`)
+
+    es.addEventListener("timeline_export_progress", (e: MessageEvent) => {
+      const data = JSON.parse(e.data)
+      handlers.onProgress?.(data.progress, data.message)
+    })
+
+    es.addEventListener("timeline_export_complete", (e: MessageEvent) => {
+      const data = JSON.parse(e.data)
+      handlers.onComplete?.(data.output)
+      es.close()
+    })
+
+    es.addEventListener("timeline_export_error", (e: MessageEvent) => {
+      const data = JSON.parse(e.data)
+      handlers.onError?.(data.message)
+      es.close()
+    })
+
+    // Safety: auto-close after 5 minutes
+    setTimeout(() => es.close(), 300000)
+
+    return es
+  },
+
   // Gems
   listGems: () =>
     request<{
