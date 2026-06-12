@@ -53,21 +53,25 @@ export default function TimelinePage() {
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       setActiveId(null)
-      const { active, over } = event
-      if (!over || active.id === over.id) return
+      const { active, delta } = event
 
       const clipId = String(active.id)
       if (!timeline) return
       for (const track of timeline.tracks) {
         const oldIdx = track.clips.findIndex((c) => c.id === clipId)
         if (oldIdx === -1) continue
-        const newIdx = track.clips.findIndex((c) => c.id === String(over.id))
-        if (newIdx === -1 || oldIdx === newIdx) return
+
+        const clip = track.clips[oldIdx]
+        const clipWidth = Math.max(1, clip.duration * pixelsPerSecond)
+        const indexShift = Math.round(delta.x / clipWidth)
+        const newIdx = Math.max(0, Math.min(track.clips.length - 1, oldIdx + indexShift))
+        if (newIdx === oldIdx) return
+
         reorderClip(clipId, track.id, newIdx)
         break
       }
     },
-    [timeline, reorderClip],
+    [timeline, pixelsPerSecond, reorderClip],
   )
 
   const handleDragCancel = useCallback(() => {
