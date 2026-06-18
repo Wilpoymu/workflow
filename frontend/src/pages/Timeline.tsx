@@ -27,6 +27,7 @@ export default function TimelinePage() {
   const trimClip = useTimelineStore((s) => s.trimClip)
   const splitClipAt = useTimelineStore((s) => s.splitClipAt)
   const setZoom = useTimelineStore((s) => s.setZoom)
+  const setTransition = useTimelineStore((s) => s.setTransition)
   const loadTimeline = useTimelineStore((s) => s.loadTimeline)
   const saveTimeline = useTimelineStore((s) => s.saveTimeline)
 
@@ -381,6 +382,7 @@ export default function TimelinePage() {
                     selectedClipId={selectedClipId}
                     onSelectClip={selectClip}
                     onTrimStart={handleTrimStart}
+                    onSetTransition={setTransition}
                   />
                 )
               })}

@@ -20,6 +20,50 @@ export type ClipMovement =
 /** What kind of media a clip references */
 export type ClipSourceType = "image" | "audio" | "subtitle"
 
+// ─── Transition types ──────────────────────────────────────────────
+
+export type TransitionType =
+  | "fade"
+  | "fadeblack"
+  | "fadewhite"
+  | "wipeleft"
+  | "wiperight"
+  | "wipeup"
+  | "wipedown"
+  | "slideleft"
+  | "slideright"
+  | "slideup"
+  | "slidedown"
+  | "dissolve"
+  | "pixelize"
+  | "none"
+
+export interface Transition {
+  type: TransitionType
+  /** Duration in seconds, 0.1 to 2.0 */
+  duration: number
+}
+
+/** Human-readable label for a transition type */
+export const TRANSITION_LABELS: Record<TransitionType, string> = {
+  fade:       "Fade",
+  fadeblack:  "Fade Black",
+  fadewhite:  "Fade White",
+  wipeleft:   "Wipe Left",
+  wiperight:  "Wipe Right",
+  wipeup:     "Wipe Up",
+  wipedown:   "Wipe Down",
+  slideleft:  "Slide Left",
+  slideright: "Slide Right",
+  slideup:    "Slide Up",
+  slidedown:  "Slide Down",
+  dissolve:   "Dissolve",
+  pixelize:   "Pixelize",
+  none:       "None",
+}
+
+// ─── Clip ──────────────────────────────────────────────────────────
+
 /** A single clip placed on a track */
 export interface TimelineClip {
   id: string
@@ -42,6 +86,10 @@ export interface TimelineClip {
   volume?: number
   /** Displayed text content — only for subtitle clips */
   text?: string
+  /** Transition from the previous clip into this one */
+  transition_in?: Transition
+  /** Transition from this clip to the next one */
+  transition_out?: Transition
 }
 
 // ─── Track types ───────────────────────────────────────────────────
@@ -106,6 +154,8 @@ export interface TimelineActions {
   trimClip: (clipId: string, edge: "in" | "out", deltaSec: number) => void
   deleteClip: (clipId: string) => void
   reorderClip: (clipId: string, trackId: string, newIndex: number) => void
+  /** Set or remove a transition on a clip's out edge */
+  setTransition: (clipId: string, transition: Transition | null) => void
 
   // Playhead & zoom
   setPlayhead: (timeSec: number) => void

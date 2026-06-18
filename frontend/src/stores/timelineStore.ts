@@ -34,16 +34,28 @@ const initialState: Pick<
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
-/** Find the furthest point across all clips to determine total duration */
+/**
+ * Recalculate total timeline duration accounting for transitions.
+ *
+ * Each track's clips are sequential. A clip with `transition_out` overlaps
+ * with the next clip, reducing the effective track duration by the
+ * transition duration. The timeline duration is the longest track duration.
+ */
 function recalculateDuration(timeline: Timeline): number {
-  let maxEnd = 0
+  let maxDuration = 0
   for (const track of timeline.tracks) {
-    for (const clip of track.clips) {
-      const end = clip.start_time + clip.duration
-      if (end > maxEnd) maxEnd = end
+    let trackDuration = 0
+    for (let i = 0; i < track.clips.length; i++) {
+      const clip = track.clips[i]
+      trackDuration += clip.duration
+      // Transition_out overlaps with the next clip, so subtract it
+      if (clip.transition_out && i < track.clips.length - 1) {
+        trackDuration -= clip.transition_out.duration
+      }
     }
+    if (trackDuration > maxDuration) maxDuration = trackDuration
   }
-  return maxEnd
+  return Math.max(0, maxDuration)
 }
 
 /** Locate a clip by id across all tracks — returns the track reference, index and clip */
@@ -289,6 +301,26 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
       tracks: timeline.tracks.map((t, i) =>
         i === trackIndex ? { ...t, clips: newClips } : t,
       ),
+    }
+    newTimeline.duration = recalculateDuration(newTimeline)
+
+    set({ timeline: newTimeline })
+  },
+
+  setTransition: (clipId, transition) => {
+    const { timeline } = get()
+    if (!timeline) return
+
+    const newTimeline: Timeline = {
+      ...timeline,
+      tracks: timeline.tracks.map((track) => ({
+        ...track,
+        clips: track.clips.map((clip) =>
+          clip.id === clipId
+            ? { ...clip, transition_out: transition ?? undefined }
+            : clip,
+        ),
+      })),
     }
     newTimeline.duration = recalculateDuration(newTimeline)
 
