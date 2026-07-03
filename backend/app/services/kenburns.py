@@ -14,23 +14,14 @@ from typing import Callable, Optional
 from PIL import Image
 
 from app.config import settings
+from app.services.clip_renderer import (
+    _run_ffmpeg,
+    _detect_hw_encoder,
+    render_image_clip,
+    concat_clips,
+)
 
 logger = logging.getLogger(__name__)
-
-# Windows needs sync subprocess with CREATE_NO_WINDOW flag
-_SUBPROCESS_FLAGS = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-
-
-def _run_ffmpeg(cmd: list[str]) -> tuple[int, str, str]:
-    """Run ffmpeg synchronously (in thread pool for async callers)."""
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        creationflags=_SUBPROCESS_FLAGS,
-    )
-    stdout, stderr = proc.communicate()
-    return proc.returncode, stdout.decode("utf-8", errors="replace"), stderr.decode("utf-8", errors="replace")
 
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
 MOVEMENTS = ['zoom_in', 'zoom_out', 'pan_right', 'pan_left', 'pan_up', 'pan_down']
@@ -279,94 +270,6 @@ def load_timestamps(json_path: str, n_images: int, audio_duration: float) -> lis
     return durations[:n_images]
 
 
-def _scale_cover(image_path: str, canvas_w: int, canvas_h: int) -> tuple[int, int]:
-    img = Image.open(image_path)
-    img_ratio = img.width / img.height
-    canvas_ratio = canvas_w / canvas_h
-
-    if img_ratio > canvas_ratio:
-        new_h = canvas_h
-        new_w = int(new_h * img_ratio)
-    else:
-        new_w = canvas_w
-        new_h = int(new_w / img_ratio)
-
-    return new_w, new_h
-
-
-def _zoompan_expr(movement: str, frames: int, out_w: int, out_h: int,
-                  canvas_w: int, canvas_h: int, fps: int) -> str:
-    zf = canvas_w / out_w
-    mx = canvas_w - out_w
-    my = canvas_h - out_h
-    cx = mx / 2
-    cy = my / 2
-
-    d = frames - 1 if frames > 1 else 1
-    T = f"on/{d}"
-    eased = f"({T})*({T})*(3-2*({T}))"
-
-    if movement == 'zoom_in':
-        z = f"1+({zf}-1)*({eased})"
-        x = f"(in_w - in_w/(1+({zf}-1)*({eased})))/2"
-        y = f"(in_h - in_h/(1+({zf}-1)*({eased})))/2"
-    elif movement == 'zoom_out':
-        z = f"{zf}-({zf}-1)*({eased})"
-        x = f"(in_w - in_w/({zf}-({zf}-1)*({eased})))/2"
-        y = f"(in_h - in_h/({zf}-({zf}-1)*({eased})))/2"
-    elif movement == 'pan_right':
-        z = f"{zf}"
-        x = f"{mx} * ({eased})"
-        y = f"{cy}"
-    elif movement == 'pan_left':
-        z = f"{zf}"
-        x = f"{mx} * (1-({eased}))"
-        y = f"{cy}"
-    elif movement == 'pan_up':
-        z = f"{zf}"
-        x = f"{cx}"
-        y = f"{my} * ({eased})"
-    else:  # pan_down
-        z = f"{zf}"
-        x = f"{cx}"
-        y = f"{my} * (1-({eased}))"
-
-    return f"zoompan=z='{z}':x='{x}':y='{y}':d={frames}:s={out_w}x{out_h}:fps={fps}"
-
-
-def _detect_hw_encoder() -> tuple[str, list[str]]:
-    try:
-        nv = subprocess.run(
-            ['nvidia-smi'], capture_output=True,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
-        )
-        if nv.returncode == 0:
-            return 'h264_nvenc', [
-                '-c:v', 'h264_nvenc',
-                '-preset', 'p1',
-                '-rc', 'vbr',
-            ]
-    except FileNotFoundError:
-        pass
-
-    try:
-        enc = subprocess.run(
-            ['ffmpeg', '-hide_banner', '-encoders'],
-            capture_output=True, text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
-        )
-        if 'h264_amf' in enc.stdout:
-            return 'h264_amf', [
-                '-c:v', 'h264_amf',
-                '-preset', 'speed',
-                '-quality', 'balanced',
-            ]
-    except FileNotFoundError:
-        pass
-
-    return 'libx264', ['-c:v', 'libx264', '-preset', 'veryfast']
-
-
 async def render_kenburns_video(
     project_dir: str,
     config: KenBurnsConfig,
@@ -456,30 +359,12 @@ async def render_kenburns_video(
     total_frames = sum(frames_per_clip)
 
     out_w, out_h = config.width, config.height
-    margin_x = int(out_w * config.intensity)
-    margin_y = int(out_h * config.intensity)
-    canvas_w = out_w + margin_x * 2
-    canvas_h = out_h + margin_y * 2
 
     rng = random.Random(config.seed)
     movements = [rng.choice(MOVEMENTS) for _ in range(n)]
 
     hw_encoder, hw_params = _detect_hw_encoder()
     logger.info(f"Detected encoder: {hw_encoder}")
-
-    if hw_encoder == 'h264_nvenc':
-        clip_encoder = ['-c:v', 'h264_nvenc', '-preset', 'p1', '-qp', '18']
-    elif hw_encoder == 'h264_amf':
-        clip_encoder = ['-c:v', 'h264_amf', '-preset', 'speed', '-quality', 'balanced']
-    else:
-        clip_encoder = ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18']
-
-    render_w = out_w * 2
-    render_h = out_h * 2
-    render_margin_x = int(render_w * config.intensity)
-    render_margin_y = int(render_h * config.intensity)
-    render_canvas_w = render_w + render_margin_x * 2
-    render_canvas_h = render_h + render_margin_y * 2
 
     clip_files = []
 
@@ -493,27 +378,16 @@ async def render_kenburns_video(
         clip_files.append(clip_path)
 
         frames_each_i = frames_per_clip[i]
-        sw, sh = _scale_cover(str(img_path), render_canvas_w, render_canvas_h)
-
-        zp_expr = _zoompan_expr(movement, frames_each_i, render_w, render_h,
-                                render_canvas_w, render_canvas_h, config.fps)
-
-        cmd = [
-            'ffmpeg', '-y',
-            '-i', str(img_path),
-            '-vf', f"scale={sw}:{sh},setsar=1,{zp_expr}",
-        ]
-        cmd.extend(clip_encoder)
-        cmd.extend([
-            '-pix_fmt', 'yuv420p',
-            '-an',
-            str(clip_path),
-        ])
+        duration_sec = frames_each_i / config.fps
 
         loop = asyncio.get_running_loop()
-        returncode, _, _ = await loop.run_in_executor(None, _run_ffmpeg, cmd)
+        ok = await loop.run_in_executor(
+            None, render_image_clip,
+            str(img_path), movement, duration_sec, config.fps,
+            config.width, config.height, str(clip_path), config.intensity,
+        )
 
-        if returncode != 0:
+        if not ok:
             logger.error(f"FFmpeg error for {img_path}")
             continue
 
@@ -523,54 +397,20 @@ async def render_kenburns_video(
     if progress_callback:
         progress_callback(0.75, "Concatenating clips...")
 
-    concat_list = temp_dir / 'concat_list.txt'
-    with open(concat_list, 'w', encoding='utf-8') as f:
-        for clip in clip_files:
-            abs_path = str(clip.resolve()).replace('\\', '/')
-            f.write(f"file '{abs_path}'\n")
-
     output_path = output_dir / "output.mp4"
 
-    final_cmd = [
-        'ffmpeg', '-y',
-        '-f', 'concat', '-safe', '0',
-        '-i', str(concat_list),
-    ]
-
-    if audio_file:
-        final_cmd.extend(['-i', str(audio_file)])
-
-    vf_scale = f'scale={out_w}:{out_h}:flags=lanczos'
-    final_cmd.extend(['-vf', vf_scale])
-    final_cmd.extend(hw_params)
-    final_cmd.extend([
-        '-b:v', '4M',
-        '-maxrate', '5M',
-        '-bufsize', '5M',
-        '-profile:v', 'high',
-        '-level', '4.0',
-    ])
-
-    if audio_file:
-        final_cmd.extend([
-            '-c:a', 'aac',
-            '-b:a', '192k',
-            '-t', str(total_duration),
-        ])
-    else:
-        final_cmd.extend([
-            '-t', str(total_duration),
-        ])
-
-    final_cmd.extend([
-        '-pix_fmt', 'yuv420p',
-        str(output_path),
-    ])
-
     loop = asyncio.get_running_loop()
-    returncode, _, _ = await loop.run_in_executor(None, _run_ffmpeg, final_cmd)
+    ok = await loop.run_in_executor(
+        None, concat_clips,
+        [str(c.resolve()) for c in clip_files],
+        str(output_path),
+        str(audio_file) if audio_file else None,
+        total_duration,
+        hw_params,
+        out_w, out_h,
+    )
 
-    if returncode != 0:
+    if not ok:
         logger.error("FFmpeg concat/encode failed")
         return None
 

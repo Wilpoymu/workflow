@@ -8,6 +8,7 @@ import Editor from "./pages/Editor"
 import Images from "./pages/Images"
 import Transcribe from "./pages/Transcribe"
 import Render from "./pages/Render"
+import TimelinePage from "./pages/Timeline"
 import Workflow from "./pages/Workflow"
 import Shorts from "./pages/Shorts"
 import EmptyState from "./components/EmptyState"
@@ -44,6 +45,7 @@ const nav = [
   { to: "/images", label: "Images", icon: Image },
   { to: "/transcribe", label: "Transcribe", icon: Mic },
   { to: "/render", label: "Render", icon: Video },
+  { to: "/timeline", label: "Timeline", icon: Video },
   { to: "/workflow", label: "Workflow", icon: Zap },
   { to: "/shorts", label: "Shorts", icon: Scissors },
 ]
@@ -140,14 +142,16 @@ export default function App() {
               <Route path="/editor/:projectId" element={<Editor />} />
               <Route path="/images/:projectId" element={<Images />} />
               <Route path="/transcribe/:projectId" element={<Transcribe />} />
-              <Route path="/render/:projectId" element={<Render />} />
-              <Route path="/workflow/:projectId" element={<Workflow />} />
+               <Route path="/render/:projectId" element={<Render />} />
+               <Route path="/timeline/:projectId" element={<TimelinePage />} />
+               <Route path="/workflow/:projectId" element={<Workflow />} />
               <Route path="/shorts/:projectId" element={<Shorts />} />
               <Route path="/editor" element={<NoProjectSelected page="Editor" icon={FileEdit} />} />
               <Route path="/images" element={<NoProjectSelected page="Images" icon={Image} />} />
               <Route path="/transcribe" element={<NoProjectSelected page="Transcribe" icon={Mic} />} />
-              <Route path="/render" element={<NoProjectSelected page="Render" icon={Video} />} />
-              <Route path="/workflow" element={<NoProjectSelected page="Workflow" icon={Zap} />} />
+               <Route path="/render" element={<NoProjectSelected page="Render" icon={Video} />} />
+               <Route path="/timeline" element={<NoProjectSelected page="Timeline" icon={Video} />} />
+               <Route path="/workflow" element={<NoProjectSelected page="Workflow" icon={Zap} />} />
               <Route path="/shorts" element={<NoProjectSelected page="Shorts" icon={Scissors} />} />
             </Routes>
           </Layout>

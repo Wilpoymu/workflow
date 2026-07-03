@@ -90,3 +90,19 @@ export interface JobStatus {
   created_at: string
   started_at?: string
 }
+
+// Timeline editor types
+export type {
+  TimelineCanvas,
+  ClipMovement,
+  ClipSourceType,
+  TimelineClip,
+  TrackType,
+  Track,
+  Timeline,
+  TimelineState,
+  TimelineActions,
+  TimelineStore,
+  TimelineApiResponse,
+  ExportApiResponse,
+} from "./timeline"
