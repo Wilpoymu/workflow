@@ -90,3 +90,20 @@ export interface JobStatus {
   created_at: string
   started_at?: string
 }
+
+// ─── Thumbnail ──────────────────────────────────────────────
+
+export interface ThumbnailVariant {
+  variant: number
+  url: string
+  seed: number
+}
+
+export interface ThumbnailStatus {
+  project_id: string
+  status: "idle" | "analyzing" | "generating" | "composing" | "done" | "failed"
+  progress: number
+  thumbnail_url: string | null
+  variants: ThumbnailVariant[]
+  error: string | null
+}

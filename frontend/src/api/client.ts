@@ -102,6 +102,21 @@ export const api = {
 
   imageEventsUrl: (projectId: string) => `/api/projects/${projectId}/images/events`,
 
+  // Thumbnails
+  generateThumbnail: (projectId: string, data: { script: string; mode: "single" | "ab_testing"; variant_count?: number; use_existing_scene?: boolean }) =>
+    request<{ project_id: string; status: string; mode: string; variant_count: number }>(
+      `/api/projects/${projectId}/thumbnails/generate`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
+  getThumbnailStatus: (projectId: string) =>
+    request<import("../types").ThumbnailStatus>(
+      `/api/projects/${projectId}/thumbnails/status`,
+    ),
+
+  thumbnailEventsUrl: (projectId: string) =>
+    `/api/projects/${projectId}/thumbnails/events`,
+
   // Transcription
   getMediaInfo: (projectId: string) =>
     request<{

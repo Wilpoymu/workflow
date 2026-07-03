@@ -24,8 +24,9 @@ class PipelineStage:
     GENERATE = "generate"
     TRANSCRIBE = "transcribe"
     RENDER = "render"
+    THUMBNAIL = "thumbnail"
 
-    ALL = (PROMPTS, GENERATE, TRANSCRIBE, RENDER)
+    ALL = (PROMPTS, GENERATE, TRANSCRIBE, RENDER, THUMBNAIL)
 
 
 class PipelineStatus:
@@ -70,6 +71,8 @@ async def start_workflow(
     concurrency: int = 2,
     accounts: list[str] | None = None,
     model: str = "NARWHAL",
+    generate_thumbnail: bool = False,
+    thumbnail_mode: str = "single",
 ) -> str:
     """
     Iniciar el pipeline completo para un proyecto.
@@ -90,12 +93,12 @@ async def start_workflow(
     await sse_manager.emit_workflow_start(project_id)
     
     # Ejecutar pipeline en background
-    asyncio.create_task(_run_pipeline(project_id, render_config or {}, concurrency, accounts or [], model))
+    asyncio.create_task(_run_pipeline(project_id, render_config or {}, concurrency, accounts or [], model, generate_thumbnail, thumbnail_mode))
     
     return project_id
 
 
-async def _run_pipeline(project_id: str, render_config: dict, concurrency: int = 2, accounts: list[str] | None = None, model: str = "NARWHAL"):
+async def _run_pipeline(project_id: str, render_config: dict, concurrency: int = 2, accounts: list[str] | None = None, model: str = "NARWHAL", generate_thumbnail: bool = False, thumbnail_mode: str = "single"):
     """Ejecutar el pipeline completo"""
     workflow = _active_workflows.get(project_id)
     if not workflow:
@@ -395,6 +398,68 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
             await sse_manager.emit_workflow_stage_failed(project_id, PipelineStage.RENDER, str(e))
             raise
         
+        # ═══════════════════════════════════════════════════════════════
+        # STAGE 4: THUMBNAIL (optional, non-fatal)
+        # ═══════════════════════════════════════════════════════════════
+        if generate_thumbnail:
+            workflow.current_stage = PipelineStage.THUMBNAIL
+            workflow.stage_status[PipelineStage.THUMBNAIL] = PipelineStatus.RUNNING
+            workflow.stage_timings[PipelineStage.THUMBNAIL]["started_at"] = datetime.utcnow().isoformat()
+            await sse_manager.emit_workflow_stage_start(project_id, PipelineStage.THUMBNAIL)
+
+            try:
+                # Read script from project directory
+                script = ""
+                text_path = project_path / "text.txt"
+                if text_path.exists():
+                    script = text_path.read_text(encoding="utf-8")
+
+                if not script:
+                    logger.warning("[WORKFLOW] No script found, skipping thumbnail stage")
+                    workflow.results["thumbnail"] = {"skipped": True, "reason": "No script found"}
+                    workflow.stage_progress[PipelineStage.THUMBNAIL] = 1.0
+                    workflow.stage_status[PipelineStage.THUMBNAIL] = PipelineStatus.COMPLETED
+                    st = workflow.stage_timings[PipelineStage.THUMBNAIL]
+                    st["completed_at"] = datetime.utcnow().isoformat()
+                    if "started_at" in st:
+                        st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
+                    await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.THUMBNAIL)
+                else:
+                    from app.models.thumbnail import ThumbnailMode, ThumbnailRequest
+                    from app.services.thumbnail_service import generate_thumbnail as run_thumbnail
+
+                    request = ThumbnailRequest(
+                        script=script,
+                        mode=ThumbnailMode.AB_TESTING if thumbnail_mode == "ab" else ThumbnailMode.SINGLE,
+                        variant_count=2,
+                        use_existing_scene=True,
+                    )
+
+                    workflow.stage_progress[PipelineStage.THUMBNAIL] = 0.1
+                    await sse_manager.emit_workflow_progress(project_id, PipelineStage.THUMBNAIL, 0.1, "Starting thumbnail generation")
+
+                    paths = await run_thumbnail(project_id, request)
+
+                    workflow.stage_progress[PipelineStage.THUMBNAIL] = 1.0
+                    workflow.stage_status[PipelineStage.THUMBNAIL] = PipelineStatus.COMPLETED
+                    workflow.results["thumbnail"] = {"paths": paths, "count": len(paths)}
+                    st = workflow.stage_timings[PipelineStage.THUMBNAIL]
+                    st["completed_at"] = datetime.utcnow().isoformat()
+                    if "started_at" in st:
+                        st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
+                    await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.THUMBNAIL)
+
+            except Exception as e:
+                logger.warning("[WORKFLOW] Thumbnail stage failed (non-fatal): %s", e)
+                workflow.stage_status[PipelineStage.THUMBNAIL] = PipelineStatus.FAILED
+                workflow.results["thumbnail"] = {"error": str(e)}
+                st = workflow.stage_timings[PipelineStage.THUMBNAIL]
+                st["failed_at"] = datetime.utcnow().isoformat()
+                if "started_at" in st:
+                    st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
+                await sse_manager.emit_workflow_stage_failed(project_id, PipelineStage.THUMBNAIL, str(e))
+                # Non-fatal — pipeline continues as completed
+
         # ═══════════════════════════════════════════════════════════════
         # PIPELINE COMPLETED
         # ═══════════════════════════════════════════════════════════════
