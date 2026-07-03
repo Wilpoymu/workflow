@@ -11,7 +11,7 @@ import { api } from "../api/client"
 import { useActiveProjectContext } from "../App"
 import type { ProjectMetadata } from "../types"
 
-type StageKey = "prompts" | "generate" | "transcribe" | "render"
+type StageKey = "prompts" | "generate" | "transcribe" | "render" | "thumbnail"
 type StageStatus = "idle" | "running" | "completed" | "failed"
 
 interface StageState {
@@ -32,6 +32,7 @@ const STAGE_CONFIG: Record<StageKey, { label: string; icon: typeof Image; color:
   generate: { label: "Generate Images", icon: Image, color: "text-purple-400" },
   transcribe: { label: "Transcribe Audio", icon: Mic, color: "text-blue-400" },
   render: { label: "Render Video", icon: Video, color: "text-green-400" },
+  thumbnail: { label: "Generate Thumbnail", icon: Image, color: "text-yellow-400" },
 }
 
 export default function Workflow() {
@@ -47,6 +48,7 @@ export default function Workflow() {
       generate: { status: "idle", progress: 0, message: "" },
       transcribe: { status: "idle", progress: 0, message: "" },
       render: { status: "idle", progress: 0, message: "" },
+      thumbnail: { status: "idle", progress: 0, message: "" },
     },
     error: null,
   })
@@ -56,6 +58,8 @@ export default function Workflow() {
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [stageTimings, setStageTimings] = useState<Record<string, any>>({})
+  const [generateThumbnail, setGenerateThumbnail] = useState(false)
+  const [thumbnailMode, setThumbnailMode] = useState<"single" | "ab_testing">("single")
 
   const esRef = useRef<EventSource | null>(null)
 
@@ -88,6 +92,11 @@ export default function Workflow() {
           render: {
             status: (res.stages.render?.status || "idle") as StageStatus,
             progress: res.stages.render?.progress || 0,
+            message: "",
+          },
+          thumbnail: {
+            status: (res.stages.thumbnail?.status || "idle") as StageStatus,
+            progress: res.stages.thumbnail?.progress || 0,
             message: "",
           },
         },
@@ -132,6 +141,7 @@ export default function Workflow() {
             generate: { ...prev.stages.generate, status: (res.stages.generate?.status || prev.stages.generate.status) as StageStatus, progress: res.stages.generate?.progress ?? prev.stages.generate.progress },
             transcribe: { ...prev.stages.transcribe, status: (res.stages.transcribe?.status || prev.stages.transcribe.status) as StageStatus, progress: res.stages.transcribe?.progress ?? prev.stages.transcribe.progress },
             render: { ...prev.stages.render, status: (res.stages.render?.status || prev.stages.render.status) as StageStatus, progress: res.stages.render?.progress ?? prev.stages.render.progress },
+            thumbnail: { ...prev.stages.thumbnail, status: (res.stages.thumbnail?.status || prev.stages.thumbnail.status) as StageStatus, progress: res.stages.thumbnail?.progress ?? prev.stages.thumbnail.progress },
           },
           error: res.error,
         }))
@@ -214,6 +224,8 @@ export default function Workflow() {
       if (savedConcurrency) config.concurrency = Number(savedConcurrency)
       if (savedAccounts) config.accounts = JSON.parse(savedAccounts)
       if (savedModel) config.model = savedModel
+      config.generate_thumbnail = generateThumbnail
+      config.thumbnail_mode = thumbnailMode
       await api.startWorkflow(projectId, config)
       setWorkflow((prev) => ({ ...prev, status: "running", error: null }))
     } catch (err: any) {
@@ -461,6 +473,51 @@ export default function Workflow() {
         })}
       </div>
 
+      {/* Thumbnail Config (only when idle) */}
+      {isIdle && (
+        <Card className="mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-semibold text-white font-sans">Generate Thumbnail</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Create a YouTube thumbnail after rendering</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={generateThumbnail}
+                onChange={(e) => setGenerateThumbnail(e.target.checked)}
+              />
+              <div className="w-10 h-6 bg-surface-hover rounded-full peer peer-checked:bg-accent peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
+            </label>
+          </div>
+          {generateThumbnail && (
+            <div className="flex gap-4">
+              <button
+                className={`px-4 py-2 text-sm rounded-lg border transition-all ${
+                  thumbnailMode === "single"
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-border text-gray-400 hover:text-white"
+                }`}
+                onClick={() => setThumbnailMode("single")}
+              >
+                Single
+              </button>
+              <button
+                className={`px-4 py-2 text-sm rounded-lg border transition-all ${
+                  thumbnailMode === "ab_testing"
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-border text-gray-400 hover:text-white"
+                }`}
+                onClick={() => setThumbnailMode("ab_testing")}
+              >
+                A/B Testing
+              </button>
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* Info Card */}
       {isIdle && (
         <Card className="mt-6">
@@ -481,6 +538,10 @@ export default function Workflow() {
             <li className="flex gap-2">
               <span className="text-accent font-mono">4.</span>
               <span><strong className="text-gray-300">Render Video:</strong> Creates the final video with Ken Burns effect, synchronized to audio</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-accent font-mono">5.</span>
+              <span><strong className="text-gray-300">Generate Thumbnail:</strong> (Optional) Creates a YouTube thumbnail with Gemini analysis + AI background</span>
             </li>
           </ol>
           <p className="text-xs text-gray-600 mt-4">
