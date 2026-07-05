@@ -326,22 +326,24 @@ export default function Workflow() {
     }
   }
 
-  const handleStart = () => {
+  const handleStart = async () => {
     if (!projectId) return
     connectSSE()
-    // Preserve existing start payload convention (backend accepts generate_thumbnail / thumbnail_mode even if TS sig omits them)
-    const config: Record<string, any> = {}
-    const savedConcurrency = sessionStorage.getItem(`images-${projectId}-concurrency`)
-    const savedAccounts = sessionStorage.getItem(`images-${projectId}-accounts`)
-    const savedModel = sessionStorage.getItem(`images-${projectId}-model`)
-    if (savedConcurrency) config.concurrency = Number(savedConcurrency)
-    if (savedAccounts) config.accounts = JSON.parse(savedAccounts)
-    if (savedModel) config.model = savedModel
-    config.generate_thumbnail = generateThumbnail
-    config.thumbnail_mode = thumbnailMode
-    api.startWorkflow(projectId, config)
-      .then(() => setWorkflow((prev) => ({ ...prev, status: "running", error: null })))
-      .catch((err: any) => toast(err?.message ?? "Failed to start workflow", "error"))
+    try {
+      const savedConcurrency = projectId ? sessionStorage.getItem(`images-${projectId}-concurrency`) : null
+      const savedAccounts = projectId ? sessionStorage.getItem(`images-${projectId}-accounts`) : null
+      const savedModel = projectId ? sessionStorage.getItem(`images-${projectId}-model`) : null
+      const config: Record<string, any> = {}
+      if (savedConcurrency) config.concurrency = Number(savedConcurrency)
+      if (savedAccounts) config.accounts = JSON.parse(savedAccounts)
+      if (savedModel) config.model = savedModel
+      const settings = await api.getSettings(projectId)
+      if (settings.settings.render) config.render = settings.settings.render
+      await api.startWorkflow(projectId, config)
+      setWorkflow((prev) => ({ ...prev, status: "running", error: null }))
+    } catch (err: any) {
+      toast(err?.message ?? "Failed to start workflow", "error")
+    }
   }
 
   const handleCancelConfirm = async () => {

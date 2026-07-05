@@ -7,6 +7,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
+from pydantic import BaseModel
+
 from app.core.task_queue import run_in_thread
 from app.services import project_service
 from app.services.whisper_pipeline import transcribe_audio, save_transcription
@@ -14,6 +16,10 @@ from app.services.whisper_pipeline import transcribe_audio, save_transcription
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/projects/{project_id}/transcribe", tags=["transcribe"])
+
+
+class SetWhisperModelRequest(BaseModel):
+    model: str = "small"
 
 
 class TranscribeJob:
@@ -98,6 +104,15 @@ async def upload_audio(
     }
 
 
+@router.put("/model")
+async def set_whisper_model(project_id: str, body: SetWhisperModelRequest):
+    project = await project_service.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    await project_service.update_project_meta(project_id, {"whisper_model": body.model})
+    return {"project_id": project_id, "whisper_model": body.model, "saved": True}
+
+
 @router.post("/start")
 async def start_transcription(
     project_id: str,
@@ -106,6 +121,9 @@ async def start_transcription(
     project = await project_service.get_project(project_id)
     if not project:
         raise HTTPException(404, "Project not found")
+
+    # Persistir el modelo seleccionado
+    await project_service.update_project_meta(project_id, {"whisper_model": model_size})
 
     project_path = Path(project.base_dir)
     audio_dir = project_path / "audio"

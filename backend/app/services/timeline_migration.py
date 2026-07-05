@@ -8,8 +8,11 @@ optionally adds audio and subtitle tracks from existing media files.
 from __future__ import annotations
 
 import json
+import logging
 import math
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["auto_migrate"]
 
@@ -119,6 +122,48 @@ def auto_migrate(project_dir: str) -> dict | None:
     """
     project_path = Path(project_dir).resolve()
 
+    # ── 0. Auto-match timestamps from transcript before reading durations ──
+    # This mirrors what render_kenburns_video does: match fragment text
+    # against Whisper word-level transcript to add start_time/end_time
+    # to each fragment in prompts-*.json.  Without this, fragments lack
+    # timestamps and _resolve_duration falls back to 5.0 s.
+    from app.services.kenburns import auto_match_timestamps
+
+    transcript_path = None
+    root_json = project_path / "script.json"
+    if root_json.exists():
+        transcript_path = str(root_json)
+    else:
+        audio_json = project_path / "audio" / "script.json"
+        if audio_json.exists():
+            transcript_path = str(audio_json)
+
+    script_path = None
+    script_txt = project_path / "audio" / "reference.txt"
+    if script_txt.exists():
+        script_path = str(script_txt)
+    if not script_path:
+        audio_txt = project_path / "audio" / "text.txt"
+        if audio_txt.exists():
+            script_path = str(audio_txt)
+    if not script_path:
+        # Fallback: any .txt file in audio/ that isn't script.srt
+        for txt_file in sorted((project_path / "audio").glob("*.txt")):
+            if txt_file.name != "script.srt":
+                script_path = str(txt_file)
+                break
+    if not script_path:
+        root_txt = project_path / "text.txt"
+        if root_txt.exists():
+            script_path = str(root_txt)
+
+    if transcript_path:
+        for pf in sorted(project_path.glob("prompts-*.json")):
+            try:
+                auto_match_timestamps(str(pf), transcript_path, script_path)
+            except Exception:
+                logger.warning("auto_match_timestamps failed for %s", pf, exc_info=True)
+
     # ── 1. Load fragments from ALL prompts-*.json files ──────────────────
     fragments = _load_fragments(project_path)
     if not fragments:
@@ -129,15 +174,70 @@ def auto_migrate(project_dir: str) -> dict | None:
     if not img_dir.is_dir():
         return None
 
-    # ── 3. Build video clips ────────────────────────────────────────────
+    # ── 3. Compute per-clip durations ────────────────────────────────────
+    # For fragments WITH timestamps: use next_start - this_start (gap-based,
+    # matching the original gallery_to_video.py behaviour).
+    # For fragments WITHOUT timestamps: interpolate from the audio duration
+    # and the total number of fragments, so the total matches the audio.
+    from app.services.kenburns import get_audio_duration
+
+    audio_file = None
+    for ext in [".mp3", ".wav", ".m4a"]:
+        candidates = sorted((project_path / "audio").glob(f"*{ext}"))
+        if candidates:
+            audio_file = candidates[0]
+            break
+
+    if audio_file:
+        try:
+            audio_duration = get_audio_duration(str(audio_file))
+        except Exception:
+            audio_duration = len(fragments) * DEFAULT_CLIP_DURATION
+    else:
+        audio_duration = len(fragments) * DEFAULT_CLIP_DURATION
+
+    # Compute avg_dur from timed gaps (same logic as load_timestamps)
+    timed = [f for f in fragments if f.get("start_time") is not None]
+    matched_durs = []
+    for i, frag in enumerate(timed):
+        if i < len(timed) - 1 and timed[i + 1].get("start_time") is not None:
+            matched_durs.append(timed[i + 1]["start_time"] - frag["start_time"])
+    avg_dur = (
+        sum(matched_durs) / len(matched_durs)
+        if matched_durs
+        else audio_duration / max(len(fragments), 1)
+    )
+
+    # Build durations list indexed by original fragment order
+    durations: list[float] = []
+    for i, f in enumerate(fragments):
+        start = f.get("start_time")
+        end = f.get("end_time")
+        if start is not None and end is not None and end > start:
+            # Fragment has timestamps — use gap to next fragment's start
+            # (or end - start for the last fragment)
+            if i + 1 < len(fragments):
+                next_start = fragments[i + 1].get("start_time")
+                if next_start is not None and next_start > start:
+                    dur = next_start - start
+                else:
+                    dur = end - start
+            else:
+                dur = end - start
+            if dur <= 0:
+                dur = avg_dur
+        else:
+            # No timestamps — use average duration
+            dur = avg_dur
+        durations.append(dur)
+
+    # ── 4. Build video clips ────────────────────────────────────────────
     clips: list[dict] = []
     cursor = 0.0  # cumulative start_time
 
-    for f in fragments:
+    for i, f in enumerate(fragments):
         fid: int = f["fragment_id"]
-
-        # Duration — use timestamps only when BOTH are present
-        duration = _resolve_duration(f)
+        duration = durations[i]
 
         # Resolve image file (new naming → legacy escena_ fallback)
         source_path = _resolve_image(img_dir, fid)

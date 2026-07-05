@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.core.job_store import init_db
 from app.routers import projects, fragments, channels, images, transcribe, render, workflow
+from app.routers.project_settings import router as project_settings_router
 from app.routers.prompts import router as prompts_router
 from app.routers.shorts import router as shorts_router
 from app.routers.gemini_bridge import router as gemini_bridge_router
@@ -57,6 +58,7 @@ app.include_router(shorts_router)
 app.include_router(gemini_bridge_router)
 app.include_router(gems_router)
 app.include_router(thumbnails_router)
+app.include_router(project_settings_router)
 
 
 @app.get("/api/setup/status")
