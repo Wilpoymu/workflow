@@ -107,3 +107,27 @@ export interface ThumbnailStatus {
   variants: ThumbnailVariant[]
   error: string | null
 }
+
+// ─── Workflow Control Room ─────────────────────────────────
+
+export interface KpiSnapshot {
+  fragments: { total: number; withPrompt: number }
+  images: { generated: number; total: number; failed: number }
+  audio: { ready: boolean; words?: number }
+  output: { hasVideo: boolean; path?: string }
+}
+
+export interface ReadinessCheck {
+  id: string
+  label: string
+  description: string
+  status: "ok" | "warn" | "error"
+  action?: { label: string; to?: string }
+}
+
+export interface LogEntry {
+  timestamp: string // ISO
+  message: string
+  level: "info" | "warn" | "error"
+  stage?: string
+}
