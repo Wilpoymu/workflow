@@ -50,6 +50,18 @@ export const api = {
   deleteProject: (id: string) =>
     request<{ project_id: string }>(`/api/projects/${id}`, { method: "DELETE" }),
 
+  // Settings
+  getSettings: (projectId: string) =>
+    request<{ project_id: string; settings: Record<string, any> }>(
+      `/api/projects/${projectId}/settings`,
+    ),
+
+  updateSettings: (projectId: string, settings: Record<string, any>) =>
+    request<{ project_id: string; settings: Record<string, any>; saved: boolean }>(
+      `/api/projects/${projectId}/settings`,
+      { method: "PUT", body: JSON.stringify({ settings }) },
+    ),
+
   // Fragments
   listFragments: (projectId: string) =>
     request<{ fragments: import("../types").Fragment[] }>(
@@ -193,6 +205,12 @@ export const api = {
   },
 
   // Word timestamps for script selection
+  setWhisperModel: (projectId: string, model: string) =>
+    request<{ project_id: string; whisper_model: string; saved: boolean }>(
+      `/api/projects/${projectId}/transcribe/model`,
+      { method: "PUT", body: JSON.stringify({ model }) },
+    ),
+
   getWordTimestamps: (projectId: string) =>
     request<{ words: Array<{ text: string; start: number; end: number; type: string }>; total: number }>(
       `/api/projects/${projectId}/transcribe/words`,
@@ -430,6 +448,13 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
+  // Project folder
+  openFolder: (projectId: string) =>
+    request<{ project_id: string; folder: string; opened: boolean }>(
+      `/api/projects/${projectId}/open`,
+      { method: "POST" },
+    ),
 
   // Orphaned project scanner
   scanOrphans: () =>

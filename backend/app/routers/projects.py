@@ -1,3 +1,7 @@
+import os
+import subprocess
+import sys
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.models.project import ProjectCreate, ProjectMetadata
@@ -107,3 +111,24 @@ async def import_orphan(body: ImportRequest):
         return {"project_id": body.project_id, "imported": ok}
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+@router.post("/{project_id}/open")
+async def open_project_folder(project_id: str):
+    """Open the project folder in the system file explorer."""
+    project = await project_service.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    folder = project.base_dir
+    if not os.path.isdir(folder):
+        raise HTTPException(404, "Project folder not found on disk")
+
+    if sys.platform == "win32":
+        subprocess.Popen(["explorer", folder], creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", folder])
+    else:
+        subprocess.Popen(["xdg-open", folder])
+
+    return {"project_id": project_id, "folder": folder, "opened": True}

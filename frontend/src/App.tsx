@@ -1,6 +1,6 @@
 import { createContext, useContext, useState } from "react"
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom"
-import { LayoutDashboard, FileEdit, Image, ImageDown, Mic, Video, Zap, Scissors, Menu } from "lucide-react"
+import { LayoutDashboard, FileEdit, Image, ImageDown, Mic, Video, Zap, Scissors, FolderOpen, Menu } from "lucide-react"
 import { ToastProvider } from "./components/Toast"
 import { useActiveProject } from "./hooks/useActiveProject"
 import Dashboard from "./pages/Dashboard"
@@ -12,6 +12,7 @@ import Workflow from "./pages/Workflow"
 import Shorts from "./pages/Shorts"
 import Thumbnails from "./pages/Thumbnails"
 import EmptyState from "./components/EmptyState"
+import { api } from "./api/client"
 
 const ActiveProjectContext = createContext<{
   activeProject: string | null
@@ -101,8 +102,15 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
           ))}
         </nav>
 
-        <div className="px-5 py-3 border-t border-border">
-          <span className="text-[11px] text-gray-600 font-mono">v0.1.0</span>
+        <div className="border-t border-border">
+          <button
+            onClick={() => activeProject && api.openFolder(activeProject)}
+            disabled={!activeProject}
+            className="flex items-center gap-2 w-full px-5 py-3 text-xs text-gray-500 hover:text-accent hover:bg-surface-hover transition-colors disabled:opacity-30 disabled:pointer-events-none"
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            Open Project Folder
+          </button>
         </div>
       </aside>
     </>

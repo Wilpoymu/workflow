@@ -45,6 +45,7 @@ export interface ProjectMetadata {
     timestamp: string
   }>
   prompt_style?: string
+  whisper_model?: string
 }
 
 export interface Fragment {

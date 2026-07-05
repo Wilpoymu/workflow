@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime
 
+from app.config import settings
 from app.services.forge_bridge import bridge
 from app.services.whisper_pipeline import transcribe_audio, save_transcription
 from app.services.kenburns import render_kenburns_video, KenBurnsConfig
@@ -298,7 +299,7 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
             audio_file = audio_files[0]
             
             # Función de callback para progreso (se llama desde thread pool)
-            def progress_callback(progress: float, message: str):
+            def progress_callback(progress: float, message: str, _extra=None):
                 workflow.stage_progress[PipelineStage.TRANSCRIBE] = progress
                 asyncio.run_coroutine_threadsafe(
                     sse_manager.emit_workflow_progress(
@@ -311,10 +312,13 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
                 )
             
             # Transcribir (ejecutar en thread pool)
+            whisper_model = (project.settings.get("whisper_model") or
+                             getattr(project, "whisper_model", None) or
+                             settings.whisper_model_size)
             loop = asyncio.get_event_loop()
             segment = await loop.run_in_executor(
                 None,
-                lambda: transcribe_audio(str(audio_file), progress_callback)
+                lambda: transcribe_audio(str(audio_file), progress_callback, whisper_model)
             )
             
             # Guardar transcripción
@@ -349,15 +353,17 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
         await sse_manager.emit_workflow_stage_start(project_id, PipelineStage.RENDER)
         
         try:
-            # Configurar Ken Burns
+            # Configurar Ken Burns — saved settings como base, render_config como override
+            saved_render = project.settings.get("render", {})
+            merged = {**saved_render, **{k: v for k, v in render_config.items() if v is not None}}
             config = KenBurnsConfig(
-                filter_mode=render_config.get("filter_mode", "all"),
-                width=render_config.get("width", 1920),
-                height=render_config.get("height", 1080),
-                fps=render_config.get("fps", 30),
-                intensity=render_config.get("intensity", 0.04),
-                seed=render_config.get("seed", 42),
-                subtitles=render_config.get("subtitles", True),
+                filter_mode=merged.get("filter_mode", "all"),
+                width=merged.get("width", 1920),
+                height=merged.get("height", 1080),
+                fps=merged.get("fps", 30),
+                intensity=merged.get("intensity", 0.04),
+                seed=merged.get("seed", 42),
+                subtitles=merged.get("subtitles", True),
             )
             
             # Función de callback para progreso
