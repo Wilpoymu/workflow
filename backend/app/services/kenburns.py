@@ -481,7 +481,7 @@ def _render_clip_gpu(
         s = 1.0 / (z * img_scale)
         tx = in_w / 2.0 + px / img_scale - vw / (2.0 * img_scale)
         ty = in_h / 2.0 + py / img_scale - vh / (2.0 * img_scale)
-        M = cp.array([[s, 0, tx], [0, s, ty]], dtype=cp.float64)
+        M = cp.array([[s, 0, ty], [0, s, tx]], dtype=cp.float64)
 
         for c in range(3):
             frame_gpu[:, :, c] = affine_transform(gpu_img[:, :, c], M, output_shape=(out_h, out_w), order=1)
