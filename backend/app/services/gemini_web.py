@@ -41,6 +41,11 @@ def _is_metadata(text: str) -> bool:
         return True
     if "google.com" in text or "gstatic.com" in text:
         return True
+    # Token-like strings: long alphanumeric with no spaces, mixed case, hyphens
+    # These are internal Gemini response IDs / metadata tokens, not actual text.
+    if len(text) >= 30 and " " not in text and "\n" not in text:
+        if re.match(r"^[A-Za-z0-9_-]+$", text) and re.search(r"[A-Z]", text) and re.search(r"[a-z]", text):
+            return True
     return False
 
 
