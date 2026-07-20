@@ -37,7 +37,7 @@ _METADATA_RE = re.compile(r"^(rc_|c_|r_)[a-f0-9]+$")
 def _is_metadata(text: str) -> bool:
     if _METADATA_RE.match(text):
         return True
-    if text.startswith("{") or text.startswith("["):
+    if (text.startswith("{") or text.startswith("[")) and len(text) < 80:
         return True
     if "google.com" in text or "gstatic.com" in text:
         return True
@@ -350,6 +350,7 @@ class GeminiWebClient:
         """Parse Gemini Web's response to extract the generated text."""
         frames = _parse_frames(raw_text)
         best_text = ""
+        all_candidates_found: list[dict] = []
 
         for frame in frames:
             if not isinstance(frame, list):
@@ -379,22 +380,40 @@ class GeminiWebClient:
                     for cand in candidates:
                         for path in ([1, 0], [1], [0, 1, 0]):
                             text = _get_nested(cand, path, "")
-                            if (
-                                isinstance(text, str)
-                                and len(text) > len(best_text)
-                                and not _is_metadata(text)
-                            ):
-                                text = re.sub(
-                                    r"http://googleusercontent\.com/\w+/\d+\n*", "", text
-                                )
-                                best_text = text
+                            if isinstance(text, str) and text.strip():
+                                is_meta = _is_metadata(text)
+                                all_candidates_found.append({
+                                    "path": path, "len": len(text),
+                                    "preview": text[:120], "is_metadata": is_meta,
+                                })
+                                if len(text) > len(best_text) and not is_meta:
+                                    text = re.sub(
+                                        r"http://googleusercontent\.com/\w+/\d+\n*", "", text
+                                    )
+                                    best_text = text
 
                 if not best_text:
                     all_texts = _extract_texts_recursive(inner_json)
                     for t in all_texts:
                         clean = re.sub(r"http://googleusercontent\.com/\w+/\d+\n*", "", t)
-                        if len(clean) > len(best_text) and not _is_metadata(clean):
+                        is_meta = _is_metadata(clean)
+                        all_candidates_found.append({
+                            "path": "recursive", "len": len(clean),
+                            "preview": clean[:120], "is_metadata": is_meta,
+                        })
+                        if len(clean) > len(best_text) and not is_meta:
                             best_text = clean
+
+        if all_candidates_found:
+            logger.debug(
+                "[GEMINI_PARSE] %d candidates found | best_len=%d best_preview=%.120s",
+                len(all_candidates_found), len(best_text), best_text[:120],
+            )
+            for c in all_candidates_found[:20]:
+                logger.debug(
+                    "  path=%s len=%d meta=%s preview=%.120s",
+                    c["path"], c["len"], c["is_metadata"], c["preview"],
+                )
 
         if not best_text:
             raise RuntimeError(
