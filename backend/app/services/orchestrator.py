@@ -438,7 +438,7 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
                         script=script,
                         mode=ThumbnailMode.AB_TESTING if thumbnail_mode == "ab" else ThumbnailMode.SINGLE,
                         variant_count=2,
-                        use_existing_scene=True,
+                        use_existing_scene=False,
                     )
 
                     workflow.stage_progress[PipelineStage.THUMBNAIL] = 0.1
