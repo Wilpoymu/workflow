@@ -11,7 +11,7 @@ class ThumbnailRequest(BaseModel):
     script: str
     mode: ThumbnailMode = ThumbnailMode.SINGLE
     variant_count: int = 2
-    use_existing_scene: bool = True
+    use_existing_scene: bool = False
 
 
 class GeminiAnalysis(BaseModel):
