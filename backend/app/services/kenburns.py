@@ -252,44 +252,49 @@ def load_timestamps(json_path: str, n_images: int, audio_duration: float) -> lis
     with open(json_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
-    # Filter fragments that have start_time (matched to transcript)
     timed = [f for f in data if f.get("start_time") is not None]
 
     if not timed:
         return [audio_duration / n_images] * n_images
 
-    durations = []
     matched_durs = []
     for i, frag in enumerate(timed):
-        if frag.get("start_time") is not None:
-            if i < len(timed) - 1 and timed[i + 1].get("start_time") is not None:
-                matched_durs.append(timed[i + 1]["start_time"] - frag["start_time"])
+        if i < len(timed) - 1 and timed[i + 1].get("start_time") is not None:
+            matched_durs.append(timed[i + 1]["start_time"] - frag["start_time"])
     avg_dur = sum(matched_durs) / len(matched_durs) if matched_durs else audio_duration / max(len(timed), n_images)
 
-    for i, frag in enumerate(timed):
+    durations = []
+    for i, frag in enumerate(data):
         frag_start = frag.get("start_time")
         if frag_start is not None:
-            if i < len(timed) - 1:
-                next_start = timed[i + 1].get("start_time")
-                if next_start is not None:
-                    dur = next_start - frag_start
-                else:
-                    dur = avg_dur
+            next_start = None
+            for j in range(i + 1, len(data)):
+                if data[j].get("start_time") is not None:
+                    next_start = data[j]["start_time"]
+                    break
+            if next_start is not None:
+                dur = next_start - frag_start
             else:
                 dur = audio_duration - frag_start
+            if dur <= 0:
+                dur = avg_dur
         else:
             dur = avg_dur
-
-        if dur <= 0:
-            dur = avg_dur
-
         durations.append(dur)
 
-    # If fewer timed fragments than images, pad remaining with average
-    while len(durations) < n_images:
-        durations.append(avg_dur)
+    # Preserve fragment order, ensure total sum equals audio_duration
+    total = sum(durations)
+    if total > 0 and abs(total - audio_duration) > 0.01:
+        scale = audio_duration / total
+        durations = [d * scale for d in durations]
 
-    return durations[:n_images]
+    # Match count to number of images
+    if len(durations) < n_images:
+        durations.extend([avg_dur] * (n_images - len(durations)))
+    elif len(durations) > n_images:
+        durations = durations[:n_images]
+
+    return durations
 
 
 def _scale_cover(image_path: str, canvas_w: int, canvas_h: int) -> tuple[int, int]:

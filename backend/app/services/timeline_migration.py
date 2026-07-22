@@ -231,6 +231,12 @@ def auto_migrate(project_dir: str) -> dict | None:
             dur = avg_dur
         durations.append(dur)
 
+    # Normalize so total sum equals audio_duration (avoids truncation)
+    total = sum(durations)
+    if total > 0 and abs(total - audio_duration) > 0.01:
+        scale = audio_duration / total
+        durations = [d * scale for d in durations]
+
     # ── 4. Build video clips ────────────────────────────────────────────
     clips: list[dict] = []
     cursor = 0.0  # cumulative start_time
