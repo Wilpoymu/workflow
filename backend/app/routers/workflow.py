@@ -22,6 +22,8 @@ class WorkflowConfig(BaseModel):
     accounts: list[str] | None = None
     model: str = "NARWHAL"
     render: Optional[dict] = None
+    generate_thumbnail: bool = False
+    thumbnail_mode: str = "single"
 
 
 class WorkflowStageStatus(BaseModel):
@@ -44,13 +46,14 @@ class WorkflowStateResponse(BaseModel):
 @router.post("")
 async def start_workflow(project_id: str, config: WorkflowConfig = WorkflowConfig()):
     """
-    Iniciar el pipeline completo: prompts → generate → transcribe → render
+    Iniciar el pipeline completo: prompts → generate → transcribe → render → thumbnail
     
-    Ejecuta las 4 etapas en secuencia:
+    Ejecuta las etapas en secuencia:
     1. Prompts: Genera image_prompt para fragments via AI (Google/Groq/Ollama/OpenRouter)
     2. Generate: Genera imágenes desde los prompts vía Forge
     3. Transcribe: Transcribe el audio con Whisper
     4. Render: Genera video con Ken Burns
+    5. Thumbnail (opcional): Genera miniatura del video (no fatal si falla)
     
     Retorna inmediatamente. Usa SSE para seguir el progreso.
     """
@@ -61,6 +64,8 @@ async def start_workflow(project_id: str, config: WorkflowConfig = WorkflowConfi
             concurrency=config.concurrency,
             accounts=config.accounts,
             model=config.model,
+            generate_thumbnail=config.generate_thumbnail,
+            thumbnail_mode=config.thumbnail_mode,
         )
         return {"project_id": project_id, "status": "started"}
     except RuntimeError as e:
@@ -88,6 +93,7 @@ async def get_workflow_status(project_id: str):
                 "generate": {"status": PipelineStatus.IDLE, "progress": 0.0},
                 "transcribe": {"status": PipelineStatus.IDLE, "progress": 0.0},
                 "render": {"status": PipelineStatus.IDLE, "progress": 0.0},
+                "thumbnail": {"status": PipelineStatus.IDLE, "progress": 0.0},
             },
             "error": None,
             "started_at": None,

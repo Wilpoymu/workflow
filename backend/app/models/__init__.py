@@ -2,6 +2,7 @@ from app.models.project import ProjectMetadata, ProjectCreate, ProjectStats, His
 from app.models.fragment import Fragment, PromptMap
 from app.models.transcript import WhisperWord, SrtBlock, TranscriptionSegment
 from app.models.image import GenerateRequest, GenerateResult, BatchStatus, ImageInfo
+from app.models.thumbnail import ThumbnailMode, ThumbnailRequest, GeminiAnalysis, VariantInfo, ThumbnailStatus
 
 __all__ = [
     "ProjectMetadata",
@@ -17,4 +18,9 @@ __all__ = [
     "GenerateResult",
     "BatchStatus",
     "ImageInfo",
+    "ThumbnailMode",
+    "ThumbnailRequest",
+    "GeminiAnalysis",
+    "VariantInfo",
+    "ThumbnailStatus",
 ]

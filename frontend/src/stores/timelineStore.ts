@@ -1,0 +1,351 @@
+import { create } from "zustand"
+import { api } from "../api/client"
+import type {
+  Timeline,
+  Track,
+  TimelineClip,
+  TimelineStore,
+} from "../types/timeline"
+
+// ─── Initial state ─────────────────────────────────────────────────
+
+const initialState: Pick<
+  TimelineStore,
+  | "timeline"
+  | "selectedClipId"
+  | "selectedTrackId"
+  | "playheadTime"
+  | "pixelsPerSecond"
+  | "isPlaying"
+  | "isLoading"
+  | "isSaving"
+  | "error"
+> = {
+  timeline: null,
+  selectedClipId: null,
+  selectedTrackId: null,
+  playheadTime: 0,
+  pixelsPerSecond: 50,
+  isPlaying: false,
+  isLoading: false,
+  isSaving: false,
+  error: null,
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────
+
+/**
+ * Recalculate total timeline duration accounting for transitions.
+ *
+ * Each track's clips are sequential. A clip with `transition_out` overlaps
+ * with the next clip, reducing the effective track duration by the
+ * transition duration. The timeline duration is the longest track duration.
+ */
+function recalculateDuration(timeline: Timeline): number {
+  let maxDuration = 0
+  for (const track of timeline.tracks) {
+    let trackDuration = 0
+    for (let i = 0; i < track.clips.length; i++) {
+      const clip = track.clips[i]
+      trackDuration += clip.duration
+      // Transition_out overlaps with the next clip, so subtract it
+      if (clip.transition_out && i < track.clips.length - 1) {
+        trackDuration -= clip.transition_out.duration
+      }
+    }
+    if (trackDuration > maxDuration) maxDuration = trackDuration
+  }
+  return Math.max(0, maxDuration)
+}
+
+/** Locate a clip by id across all tracks — returns the track reference, index and clip */
+function findClipById(
+  timeline: Timeline,
+  clipId: string,
+): { track: Track; clipIndex: number; clip: TimelineClip } | null {
+  for (const track of timeline.tracks) {
+    const clipIndex = track.clips.findIndex((c) => c.id === clipId)
+    if (clipIndex !== -1) {
+      return { track, clipIndex, clip: track.clips[clipIndex] }
+    }
+  }
+  return null
+}
+
+// ─── Store ─────────────────────────────────────────────────────────
+
+export const useTimelineStore = create<TimelineStore>((set, get) => ({
+  ...initialState,
+
+  // ── Lifecycle ──────────────────────────────────────────────────
+
+  loadTimeline: async (projectId) => {
+    set({ isLoading: true, error: null })
+    try {
+      const res = await api.getTimeline(projectId)
+      if (res.ok && res.timeline) {
+        set({ timeline: res.timeline, isLoading: false })
+      } else {
+        set({
+          error: res.message || "Failed to load timeline",
+          isLoading: false,
+        })
+      }
+    } catch (e) {
+      set({ error: String(e), isLoading: false })
+    }
+  },
+
+  saveTimeline: async (projectId) => {
+    const { timeline } = get()
+    if (!timeline) return
+
+    set({ isSaving: true })
+    try {
+      const res = await api.saveTimeline(projectId, timeline)
+      if (!res.ok) {
+        set({ error: res.message || "Failed to save timeline" })
+      }
+    } catch (e) {
+      set({ error: String(e) })
+    } finally {
+      set({ isSaving: false })
+    }
+  },
+
+  // ── Selection ──────────────────────────────────────────────────
+
+  selectClip: (clipId) => set({ selectedClipId: clipId }),
+
+  selectTrack: (trackId) => set({ selectedTrackId: trackId }),
+
+  // ── Clip mutations ─────────────────────────────────────────────
+
+  updateClip: (clipId, patch) => {
+    const { timeline } = get()
+    if (!timeline) return
+
+    // Minimum duration guard: clamp duration to at least 0.5s
+    const safePatch =
+      typeof patch.duration === "number" && patch.duration < 0.5
+        ? { ...patch, duration: 0.5 }
+        : patch
+
+    const newTimeline: Timeline = {
+      ...timeline,
+      tracks: timeline.tracks.map((track) => ({
+        ...track,
+        clips: track.clips.map((clip) =>
+          clip.id === clipId ? { ...clip, ...safePatch } : clip,
+        ),
+      })),
+    }
+    newTimeline.duration = recalculateDuration(newTimeline)
+
+    set({ timeline: newTimeline })
+  },
+
+  splitClipAt: (trackId, timeSec) => {
+    const { timeline } = get()
+    if (!timeline) return
+
+    const trackIndex = timeline.tracks.findIndex((t) => t.id === trackId)
+    if (trackIndex === -1) return
+
+    const track = timeline.tracks[trackIndex]
+    const clipIndex = track.clips.findIndex(
+      (c) => c.start_time <= timeSec && timeSec < c.start_time + c.duration,
+    )
+    if (clipIndex === -1) return
+
+    const original = track.clips[clipIndex]
+
+    // Guard 1: can't split at exact start or exact end of clip
+    if (timeSec <= original.start_time || timeSec >= original.start_time + original.duration) {
+      return
+    }
+
+    const splitPoint = timeSec - original.start_time
+
+    // Guard 2: both resulting clips must be at least 0.5s
+    if (splitPoint < 0.5 || original.duration - splitPoint < 0.5) {
+      return
+    }
+
+    const clipA: TimelineClip = {
+      ...original,
+      id: `${original.id}_a`,
+      duration: splitPoint,
+      trim_out: original.trim_in + splitPoint,
+    }
+
+    const clipB: TimelineClip = {
+      ...original,
+      id: `${original.id}_b`,
+      start_time: timeSec,
+      duration: original.duration - splitPoint,
+      trim_in: original.trim_in + splitPoint,
+    }
+
+    const newClips = [...track.clips]
+    newClips.splice(clipIndex, 1, clipA, clipB)
+
+    const newTimeline: Timeline = {
+      ...timeline,
+      tracks: timeline.tracks.map((t, i) =>
+        i === trackIndex ? { ...t, clips: newClips } : t,
+      ),
+    }
+    newTimeline.duration = recalculateDuration(newTimeline)
+
+    set({ timeline: newTimeline })
+  },
+
+  trimClip: (clipId, edge, deltaSec) => {
+    const { timeline } = get()
+    if (!timeline) return
+
+    const found = findClipById(timeline, clipId)
+    if (!found) return
+
+    const { track, clipIndex, clip } = found
+    const MIN_DURATION = 0.5
+    let newStartTime = clip.start_time
+    let newDuration = clip.duration
+
+    if (edge === "in") {
+      // Left edge: move start_time + adjust duration so left edge follows mouse
+      // LEFT drag (negative delta): start_time earlier, duration longer
+      // RIGHT drag (positive delta): start_time later, duration shorter
+      const maxLeft = clip.start_time // can't go before 0
+      const clampedDelta = deltaSec < 0 ? Math.max(-maxLeft, deltaSec) : deltaSec
+      newStartTime = clip.start_time + clampedDelta
+      newDuration = clip.duration - clampedDelta
+    } else {
+      // Right edge: adjust duration only (right edge follows mouse)
+      newDuration = clip.duration + deltaSec
+    }
+
+    // Minimum duration guard
+    if (newDuration < MIN_DURATION || !isFinite(newDuration)) return
+
+    // Overlap prevention
+    const prevClip = track.clips[clipIndex - 1]
+    const nextClip = track.clips[clipIndex + 1]
+    if (prevClip && newStartTime < prevClip.start_time + prevClip.duration) return
+    if (nextClip) {
+      const proposedEnd = newStartTime + newDuration
+      if (proposedEnd > nextClip.start_time) return
+    }
+
+    const newTimeline: Timeline = {
+      ...timeline,
+      tracks: timeline.tracks.map((track) => ({
+        ...track,
+        clips: track.clips.map((c) =>
+          c.id === clipId
+            ? { ...c, start_time: newStartTime, duration: newDuration }
+            : c,
+        ),
+      })),
+    }
+    newTimeline.duration = recalculateDuration(newTimeline)
+
+    set({ timeline: newTimeline })
+  },
+
+  deleteClip: (clipId) => {
+    const { timeline, selectedClipId } = get()
+    if (!timeline) return
+
+    const newTimeline: Timeline = {
+      ...timeline,
+      tracks: timeline.tracks.map((track) => ({
+        ...track,
+        clips: track.clips.filter((c) => c.id !== clipId),
+      })),
+    }
+    newTimeline.duration = recalculateDuration(newTimeline)
+
+    set({
+      timeline: newTimeline,
+      selectedClipId: selectedClipId === clipId ? null : selectedClipId,
+    })
+  },
+
+  reorderClip: (clipId, trackId, newIndex) => {
+    const { timeline } = get()
+    if (!timeline) return
+
+    const trackIndex = timeline.tracks.findIndex((t) => t.id === trackId)
+    if (trackIndex === -1) return
+
+    const track = timeline.tracks[trackIndex]
+    const oldIndex = track.clips.findIndex((c) => c.id === clipId)
+    if (oldIndex === -1 || oldIndex === newIndex) return
+
+    // Reorder clips array
+    const newClips = [...track.clips]
+    const [moved] = newClips.splice(oldIndex, 1)
+    newClips.splice(newIndex, 0, moved)
+
+    // Recalculate sequential start_times
+    let cursor = 0
+    for (const clip of newClips) {
+      clip.start_time = cursor
+      cursor += clip.duration
+    }
+
+    const newTimeline: Timeline = {
+      ...timeline,
+      tracks: timeline.tracks.map((t, i) =>
+        i === trackIndex ? { ...t, clips: newClips } : t,
+      ),
+    }
+    newTimeline.duration = recalculateDuration(newTimeline)
+
+    set({ timeline: newTimeline })
+  },
+
+  setTransition: (clipId, transition) => {
+    const { timeline } = get()
+    if (!timeline) return
+
+    const newTimeline: Timeline = {
+      ...timeline,
+      tracks: timeline.tracks.map((track) => ({
+        ...track,
+        clips: track.clips.map((clip) =>
+          clip.id === clipId
+            ? { ...clip, transition_out: transition ?? undefined }
+            : clip,
+        ),
+      })),
+    }
+    newTimeline.duration = recalculateDuration(newTimeline)
+
+    set({ timeline: newTimeline })
+  },
+
+  // ── Playhead & zoom ────────────────────────────────────────────
+
+  setPlayhead: (timeSec) => {
+    const { timeline } = get()
+    const max = timeline?.duration ?? 0
+    set({ playheadTime: Math.max(0, Math.min(timeSec, max)) })
+  },
+
+  setZoom: (pps) => {
+    set({ pixelsPerSecond: Math.max(10, Math.min(pps, 200)) })
+  },
+
+  // ── Playback ───────────────────────────────────────────────────
+
+  setPlaying: (playing) => set({ isPlaying: playing }),
+
+  // ── Meta ───────────────────────────────────────────────────────
+
+  setError: (error) => set({ error }),
+
+  reset: () => set({ ...initialState }),
+}))

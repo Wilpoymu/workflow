@@ -8,9 +8,22 @@ import shutil
 import subprocess
 import tempfile
 import unicodedata
+from io import BytesIO
 from pathlib import Path
 from typing import Callable, Optional
 
+# Ensure CUDA_PATH is set for CuPy (silences harmless warning)
+if os.name == "nt" and "CUDA_PATH" not in os.environ:
+    try:
+        import nvidia.cuda_runtime
+        pkg_dir = nvidia.cuda_runtime.__path__[0]
+        os.environ["CUDA_PATH"] = pkg_dir
+    except Exception:
+        pass
+
+import cupy as cp
+import numpy as np
+from cupyx.scipy.ndimage import affine_transform
 from PIL import Image
 
 from app.config import settings
@@ -367,6 +380,121 @@ def _detect_hw_encoder() -> tuple[str, list[str]]:
     return 'libx264', ['-c:v', 'libx264', '-preset', 'veryfast']
 
 
+# ── GPU Ken Burns helpers ────────────────────────────────────
+
+
+def _smoothstep(t: float) -> float:
+    return t * t * (3.0 - 2.0 * t)
+
+
+def _render_clip_gpu(
+    img: Image.Image,
+    movement: str,
+    n_frames: int,
+    fps: int,
+    out_w: int,
+    out_h: int,
+    intensity: float,
+    clip_encoder: list[str],
+    output_path: str,
+) -> bool:
+    """Render a single Ken Burns clip on GPU.
+
+    Replicates the original canvas+margins approach:
+      - canvas is output enlarged by margins (intensity)
+      - image is scaled to COVER the canvas
+      - at z=1 the view shows the full canvas (widest)
+      - at z=zf the view is zoomed in (closest)
+      - pan moves the view within the canvas at fixed zoom zf
+    """
+    in_w, in_h = img.size
+
+    margin_x = int(out_w * intensity)
+    margin_y = int(out_h * intensity)
+    canvas_w = out_w + margin_x * 2
+    canvas_h = out_h + margin_y * 2
+    zf = canvas_w / out_w  # max zoom factor (~1 + 2*intensity)
+
+    # Scale factor to COVER the canvas with the image
+    img_scale = max(canvas_w / in_w, canvas_h / in_h)
+
+    # Upload base image to GPU (float32 RGB [0,1])
+    host = np.array(img, dtype=np.float32) / 255.0
+    gpu_img = cp.asarray(host)
+
+    # Start FFmpeg subprocess (rawvideo → hw encoder)
+    cmd = [
+        'ffmpeg', '-y',
+        '-f', 'rawvideo',
+        '-pix_fmt', 'rgb24',
+        '-s', f'{out_w}x{out_h}',
+        '-r', str(fps),
+        '-i', 'pipe:',
+    ]
+    cmd.extend(clip_encoder)
+    cmd.extend([
+        '-pix_fmt', 'yuv420p',
+        '-an',
+        str(output_path),
+    ])
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, creationflags=_SUBPROCESS_FLAGS)
+
+    frame_gpu = cp.empty((out_h, out_w, 3), dtype=cp.float32)
+    denom = max(n_frames - 1, 1)
+
+    for fi in range(n_frames):
+        prog = fi / denom
+        eased = _smoothstep(prog)
+
+        # Zoom: z=1 (full canvas visible) → z=zf (zoomed in)
+        if movement == 'zoom_in':
+            z = 1.0 + (zf - 1.0) * eased
+        elif movement == 'zoom_out':
+            z = zf - (zf - 1.0) * eased
+        else:
+            z = zf
+
+        # Pan in canvas coordinates
+        vw = out_w / z   # visible width in canvas pixels
+        vh = out_h / z   # visible height
+        pan_range_x = max(0.0, (canvas_w - vw) / 2.0)
+        pan_range_y = max(0.0, (canvas_h - vh) / 2.0)
+
+        if movement == 'pan_right':
+            px = -pan_range_x + 2.0 * pan_range_x * eased
+            py = 0.0
+        elif movement == 'pan_left':
+            px = pan_range_x - 2.0 * pan_range_x * eased
+            py = 0.0
+        elif movement == 'pan_up':
+            px = 0.0
+            py = pan_range_y - 2.0 * pan_range_y * eased
+        elif movement == 'pan_down':
+            px = 0.0
+            py = -pan_range_y + 2.0 * pan_range_y * eased
+        else:
+            px = py = 0.0
+
+        # Combined affine: output → canvas → image
+        # output → canvas: scale = 1/z, translate = canvas_center - out_center/z + pan
+        # canvas → image:  scale = img_scale, translate = (image_overhang)/2
+        s = 1.0 / (z * img_scale)
+        tx = in_w / 2.0 + px / img_scale - vw / (2.0 * img_scale)
+        ty = in_h / 2.0 + py / img_scale - vh / (2.0 * img_scale)
+        M = cp.array([[s, 0, ty], [0, s, tx]], dtype=cp.float64)
+
+        for c in range(3):
+            frame_gpu[:, :, c] = affine_transform(gpu_img[:, :, c], M, output_shape=(out_h, out_w), order=1)
+
+        # Download back, convert to uint8 RGB, write to pipe
+        frame_host = cp.asnumpy(cp.clip(frame_gpu * 255.0, 0, 255).astype(cp.uint8))
+        proc.stdin.write(frame_host.tobytes())
+
+    proc.stdin.close()
+    ret = proc.wait()
+    return ret == 0
+
+
 async def render_kenburns_video(
     project_dir: str,
     config: KenBurnsConfig,
@@ -425,6 +553,16 @@ async def render_kenburns_video(
     if script_txt.exists():
         script_path = str(script_txt)
     if not script_path:
+        audio_txt = audio_dir / "text.txt"
+        if audio_txt.exists():
+            script_path = str(audio_txt)
+    if not script_path:
+        # Fallback: any .txt file in audio/ that isn't script.srt
+        for txt_file in sorted(audio_dir.glob("*.txt")):
+            if txt_file.name != "script.srt":
+                script_path = str(txt_file)
+                break
+    if not script_path:
         root_txt = project_path / "text.txt"
         if root_txt.exists():
             script_path = str(root_txt)
@@ -456,10 +594,6 @@ async def render_kenburns_video(
     total_frames = sum(frames_per_clip)
 
     out_w, out_h = config.width, config.height
-    margin_x = int(out_w * config.intensity)
-    margin_y = int(out_h * config.intensity)
-    canvas_w = out_w + margin_x * 2
-    canvas_h = out_h + margin_y * 2
 
     rng = random.Random(config.seed)
     movements = [rng.choice(MOVEMENTS) for _ in range(n)]
@@ -468,18 +602,11 @@ async def render_kenburns_video(
     logger.info(f"Detected encoder: {hw_encoder}")
 
     if hw_encoder == 'h264_nvenc':
-        clip_encoder = ['-c:v', 'h264_nvenc', '-preset', 'p1', '-qp', '18']
+        clip_encoder = ['-c:v', 'h264_nvenc', '-preset', 'p1']
     elif hw_encoder == 'h264_amf':
         clip_encoder = ['-c:v', 'h264_amf', '-preset', 'speed', '-quality', 'balanced']
     else:
         clip_encoder = ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18']
-
-    render_w = out_w * 2
-    render_h = out_h * 2
-    render_margin_x = int(render_w * config.intensity)
-    render_margin_y = int(render_h * config.intensity)
-    render_canvas_w = render_w + render_margin_x * 2
-    render_canvas_h = render_h + render_margin_y * 2
 
     clip_files = []
 
@@ -493,28 +620,17 @@ async def render_kenburns_video(
         clip_files.append(clip_path)
 
         frames_each_i = frames_per_clip[i]
-        sw, sh = _scale_cover(str(img_path), render_canvas_w, render_canvas_h)
 
-        zp_expr = _zoompan_expr(movement, frames_each_i, render_w, render_h,
-                                render_canvas_w, render_canvas_h, config.fps)
-
-        cmd = [
-            'ffmpeg', '-y',
-            '-i', str(img_path),
-            '-vf', f"scale={sw}:{sh},setsar=1,{zp_expr}",
-        ]
-        cmd.extend(clip_encoder)
-        cmd.extend([
-            '-pix_fmt', 'yuv420p',
-            '-an',
-            str(clip_path),
-        ])
-
+        img = Image.open(img_path).convert("RGB")
         loop = asyncio.get_running_loop()
-        returncode, _, _ = await loop.run_in_executor(None, _run_ffmpeg, cmd)
-
-        if returncode != 0:
-            logger.error(f"FFmpeg error for {img_path}")
+        ok = await loop.run_in_executor(
+            None,
+            _render_clip_gpu,
+            img, movement, frames_each_i, config.fps,
+            out_w, out_h, config.intensity, clip_encoder, str(clip_path),
+        )
+        if not ok:
+            logger.error(f"GPU render failed for {img_path}")
             continue
 
     if not clip_files:
@@ -540,8 +656,6 @@ async def render_kenburns_video(
     if audio_file:
         final_cmd.extend(['-i', str(audio_file)])
 
-    vf_scale = f'scale={out_w}:{out_h}:flags=lanczos'
-    final_cmd.extend(['-vf', vf_scale])
     final_cmd.extend(hw_params)
     final_cmd.extend([
         '-b:v', '4M',

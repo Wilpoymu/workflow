@@ -109,6 +109,158 @@ class ForgeBridge:
             await self._server.wait_closed()
             logger.info("Forge bridge WS server stopped")
 
+    async def dispatch_thumbnail(
+        self,
+        project_id: str,
+        thumbnail_prompt: str,
+        model: str = "NARWHAL",
+    ) -> str | None:
+        """Dispatch a SINGLE Flow request for thumbnail background generation.
+
+        Uses the existing dispatch infrastructure but for a single image request.
+        Returns the fifeUrl of the generated image, or None on failure.
+
+        Args:
+            project_id: Project identifier.
+            thumbnail_prompt: Text prompt for background image generation.
+            model: Flow model name (default: NARWHAL).
+
+        Returns:
+            fifeUrl string if successful, None otherwise.
+        """
+        if not self.accounts:
+            logger.warning("[THUMBNAIL] No accounts connected for dispatch")
+            return None
+
+        # Build a synthetic fragment object
+        class _ThumbnailFragment:
+            fragment_id = 9999
+            image_prompt = thumbnail_prompt
+
+        fragments = [_ThumbnailFragment()]
+        batch_id = uuid.uuid4().hex[:8]
+        flow_project_id = uuid.uuid4().hex
+        base_url = f"https://aisandbox-pa.googleapis.com/v1/projects/{flow_project_id}/flowMedia:batchGenerateImages"
+        session_id = f";{int(time.time() * 1000)}"
+
+        req = {
+            "clientContext": {
+                "projectId": flow_project_id,
+                "tool": "PINHOLE",
+                "sessionId": session_id,
+            },
+            "imageModelName": model,
+            "imageAspectRatio": "IMAGE_ASPECT_RATIO_LANDSCAPE",
+            "structuredPrompt": {
+                "parts": [{"text": thumbnail_prompt}],
+            },
+            "seed": random.randint(1, 999999),
+        }
+        req["imageInputs"] = []
+
+        body = {
+            "clientContext": {
+                "projectId": flow_project_id,
+                "tool": "PINHOLE",
+                "sessionId": session_id,
+            },
+            "mediaGenerationContext": {
+                "batchId": batch_id,
+            },
+            "useNewMedia": True,
+            "requests": [req],
+        }
+
+        requests_list = [{
+            "requestId": "9999",
+            "url": base_url,
+            "body": body,
+            "prompt": thumbnail_prompt,
+        }]
+
+        logger.info(
+            "[THUMBNAIL] dispatch: batch=%s project=%s prompt=%.60s",
+            batch_id, project_id, thumbnail_prompt[:60],
+        )
+
+        # Set up batch state
+        state = {
+            "batch_id": batch_id,
+            "project_id": project_id,
+            "project_dir": "",
+            "requests": requests_list,
+            "total": 1,
+            "done": 0,
+            "failed": 0,
+            "model": model,
+            "results": {},
+            "accounts_used": [],
+        }
+        self._batch_results[batch_id] = state
+
+        # Send to first available account
+        available = list(self.accounts.items())
+        if not available:
+            logger.warning("[THUMBNAIL] No accounts available")
+            self._batch_results.pop(batch_id, None)
+            return None
+
+        acc_hash, ws = available[0]
+        try:
+            await ws.send(json.dumps({
+                "type": "generate", "batchId": batch_id, "requests": requests_list,
+            }))
+            logger.info("[THUMBNAIL] Sent single request to account %s", acc_hash[:12])
+        except websockets.exceptions.ConnectionClosed:
+            self.accounts.pop(acc_hash, None)
+            self._batch_results.pop(batch_id, None)
+            return None
+
+        # Wait for result (shorter timeout for thumbnail)
+        evt = asyncio.Event()
+        self._batch_events[batch_id] = evt
+        try:
+            await asyncio.wait_for(evt.wait(), timeout=120)
+        except asyncio.TimeoutError:
+            self._batch_events.pop(batch_id, None)
+            self._batch_results.pop(batch_id, None)
+            logger.warning("[THUMBNAIL] Batch %s timed out", batch_id)
+            return None
+
+        # _handle_result modifies `state` in-place and may have already popped it
+        # from self._batch_results — but our local `state` reference still has the data
+        self._batch_events.pop(batch_id, None)
+        self._pending_chunks.pop(batch_id, None)
+        self._batch_results.pop(batch_id, None)
+
+        result = state.get("results", {}).get("9999", {})
+        if not result.get("success"):
+            logger.warning("[THUMBNAIL] Flow request failed for batch %s", batch_id)
+            return None
+
+        raw_data = result.get("data", "")
+        parsed = raw_data
+        if isinstance(raw_data, str):
+            try:
+                parsed = json.loads(raw_data)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        try:
+            media_list = parsed.get("media", []) if isinstance(parsed, dict) else []
+            if media_list and isinstance(media_list, list):
+                first = media_list[0]
+                img = first.get("image", {})
+                gen = img.get("generatedImage", {})
+                fife_url = gen.get("fifeUrl")
+                if fife_url:
+                    logger.info("[THUMBNAIL] Got fifeUrl: %.100s", fife_url)
+                    return fife_url
+        except Exception as e:
+            logger.warning("[THUMBNAIL] Failed to parse Flow response: %s", e)
+
+        return None
+
     async def dispatch(
         self,
         project_id: str,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { useParams } from "react-router-dom"
+import { useParams, useNavigate } from "react-router-dom"
 import { Video, Download, Play, AlertCircle, CheckCircle, Check, RefreshCw, Trash2 } from "lucide-react"
 import PageHeader from "../components/PageHeader"
 import Card from "../components/Card"
@@ -24,6 +24,7 @@ interface RenderConfig {
 
 export default function Render() {
   const { projectId } = useParams<{ projectId: string }>()
+  const navigate = useNavigate()
   const { toast } = useToast()
   const { setActiveProject } = useActiveProjectContext()
 
@@ -33,7 +34,7 @@ export default function Render() {
   const [hasRender, setHasRender] = useState(false)
   const [fileSize, setFileSize] = useState(0)
   const [projectTitle, setProjectTitle] = useState("")
-  const [config, setConfig] = useState<RenderConfig>({
+  const defaultConfig: RenderConfig = {
     filter_mode: "all",
     width: 1920,
     height: 1080,
@@ -41,7 +42,8 @@ export default function Render() {
     intensity: 0.04,
     seed: 42,
     subtitles: true,
-  })
+  }
+  const [config, setConfig] = useState<RenderConfig>(defaultConfig)
 
   const wsRef = useRef<WebSocket | null>(null)
 
@@ -53,6 +55,10 @@ export default function Render() {
     if (!projectId) return
     api.getProject(projectId).then((p) => {
       setProjectTitle(p.title || p.name)
+    }).catch(() => {})
+    api.getSettings(projectId).then((s) => {
+      const r = s.settings.render
+      if (r) setConfig((prev) => ({ ...prev, ...r }))
     }).catch(() => {})
   }, [projectId])
 
@@ -140,7 +146,11 @@ export default function Render() {
   }
 
   const updateConfig = <K extends keyof RenderConfig>(key: K, value: RenderConfig[K]) => {
-    setConfig((prev) => ({ ...prev, [key]: value }))
+    setConfig((prev) => {
+      const next = { ...prev, [key]: value }
+      api.updateSettings(projectId!, { render: next }).catch(() => {})
+      return next
+    })
   }
 
   if (!projectId) {
@@ -161,6 +171,17 @@ export default function Render() {
         backTo={`/editor/${projectId}`}
         actions={
           <div className="flex items-center gap-2">
+            <button
+              className="btn-secondary text-xs flex items-center gap-1.5"
+              onClick={() => navigate(`/timeline/${projectId}`)}
+              title="Open in Timeline Editor"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="4" y="4" width="16" height="16" rx="2" />
+                <path d="M9 8h1v8H9zm5 0h1v8h-1zm-3 0h1v8h-1z" />
+              </svg>
+              Timeline Editor
+            </button>
             {hasRender && (
               <>
                 <button className="btn-secondary text-xs" onClick={handleDownload}>

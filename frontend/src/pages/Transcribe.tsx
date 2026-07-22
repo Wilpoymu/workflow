@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useParams } from "react-router-dom"
 import { Mic, Download, CheckCircle, AlertCircle, Play, FileAudio, FileText, FolderOpen, Clock } from "lucide-react"
 import PageHeader from "../components/PageHeader"
@@ -60,6 +60,9 @@ export default function Transcribe() {
     if (!projectId) return
     api.getProject(projectId).then((p) => {
       setProjectTitle(p.title || p.name)
+    }).catch(() => {})
+    api.getSettings(projectId).then((s) => {
+      if (s.settings.whisper_model) setModelSize(s.settings.whisper_model)
     }).catch(() => {})
   }, [projectId])
 
@@ -343,7 +346,11 @@ export default function Transcribe() {
                 <select
                   className="flex-1 px-3 py-1.5 text-xs font-mono bg-surface-hover border border-white/5 rounded-lg text-gray-300 focus:outline-none focus:border-accent/50"
                   value={modelSize}
-                  onChange={(e) => setModelSize(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setModelSize(val)
+                    api.updateSettings(projectId!, { whisper_model: val }).catch(() => {})
+                  }}
                 >
                   <option value="tiny">tiny (fastest)</option>
                   <option value="base">base</option>
