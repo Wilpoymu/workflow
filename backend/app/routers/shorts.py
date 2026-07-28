@@ -191,7 +191,7 @@ async def render_shorts(project_id: str, body: RenderRequest) -> RenderResponse:
             detail=f"Failed to analyze project: {e}",
         )
 
-    if not suggestions:
+    if not suggestions and not body.manual_clips:
         raise HTTPException(
             status_code=400,
             detail="No suggestions available for rendering",

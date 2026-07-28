@@ -94,6 +94,7 @@ async def get_workflow_status(project_id: str):
                 "transcribe": {"status": PipelineStatus.IDLE, "progress": 0.0},
                 "render": {"status": PipelineStatus.IDLE, "progress": 0.0},
                 "thumbnail": {"status": PipelineStatus.IDLE, "progress": 0.0},
+                "metadata": {"status": PipelineStatus.IDLE, "progress": 0.0},
             },
             "error": None,
             "started_at": None,
