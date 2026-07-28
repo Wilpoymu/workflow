@@ -324,6 +324,29 @@ export const api = {
   shortsDownloadUrl: (projectId: string, filename: string) =>
     `/api/projects/${projectId}/shorts/file/${filename}`,
 
+  // Shorts Metadata
+  generateShortsMetadata: (projectId: string, data: { text: string; platform?: string }) =>
+    request<{
+      tiktok?: {
+        title: string
+        description: string
+        hashtags: string[]
+        tags: string[]
+        audio_suggestion: string | null
+      }
+      youtube?: {
+        title: string
+        description: string
+        tags: string[]
+        hashtags: string[]
+        category: string
+      }
+      generated_from?: string
+    }>(`/api/projects/${projectId}/shorts/metadata`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   // Script (full guion text)
   getScript: (projectId: string) =>
     request<{ text: string; project_id: string }>(
