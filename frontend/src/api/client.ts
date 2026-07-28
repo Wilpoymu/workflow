@@ -324,6 +324,41 @@ export const api = {
   shortsDownloadUrl: (projectId: string, filename: string) =>
     `/api/projects/${projectId}/shorts/file/${filename}`,
 
+  // Video Metadata
+  generateVideoMetadata: (projectId: string, data: { text: string }) =>
+    request<Record<string, any>>(`/api/projects/${projectId}/metadata/video/generate`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getVideoMetadata: (projectId: string) =>
+    request<{ metadata: Record<string, any> | null }>(
+      `/api/projects/${projectId}/metadata/video`,
+    ),
+
+  updateVideoMetadata: (projectId: string, data: Record<string, any>) =>
+    request<Record<string, any>>(`/api/projects/${projectId}/metadata/video`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  validateChapters: (projectId: string) =>
+    request<Record<string, any>>(`/api/projects/${projectId}/metadata/video/validate-chapters`, {
+      method: "POST",
+    }),
+
+  // Shorts Metadata
+  generateShortsMetadata: (projectId: string, data: { index: string; text: string; platform?: string }) =>
+    request<Record<string, any>>(`/api/projects/${projectId}/metadata/shorts/generate`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getShortsMetadata: (projectId: string, index?: string) =>
+    request<{ metadata: any }>(
+      `/api/projects/${projectId}/metadata/shorts${index ? `?index=${encodeURIComponent(index)}` : ""}`,
+    ),
+
   // Script (full guion text)
   getScript: (projectId: string) =>
     request<{ text: string; project_id: string }>(

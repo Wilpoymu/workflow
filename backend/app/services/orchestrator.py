@@ -26,8 +26,9 @@ class PipelineStage:
     TRANSCRIBE = "transcribe"
     RENDER = "render"
     THUMBNAIL = "thumbnail"
+    METADATA = "metadata"
 
-    ALL = (PROMPTS, GENERATE, TRANSCRIBE, RENDER, THUMBNAIL)
+    ALL = (PROMPTS, GENERATE, TRANSCRIBE, RENDER, THUMBNAIL, METADATA)
 
 
 class PipelineStatus:
@@ -345,7 +346,62 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
             raise
         
         # ═══════════════════════════════════════════════════════════════
-        # STAGE 3: RENDER VIDEO
+        # STAGE 3: METADATA (optional, non-fatal)
+        # ═══════════════════════════════════════════════════════════════
+        workflow.current_stage = PipelineStage.METADATA
+        workflow.stage_status[PipelineStage.METADATA] = PipelineStatus.RUNNING
+        workflow.stage_timings[PipelineStage.METADATA]["started_at"] = datetime.utcnow().isoformat()
+        await sse_manager.emit_workflow_stage_start(project_id, PipelineStage.METADATA)
+
+        try:
+            text_path = project_path / "text.txt"
+            has_text = text_path.exists() and text_path.read_text(encoding="utf-8").strip()
+
+            if not has_text:
+                logger.warning("[WORKFLOW] No text.txt found, skipping metadata stage")
+                workflow.results["metadata"] = {"skipped": True, "reason": "No text.txt found"}
+                workflow.stage_progress[PipelineStage.METADATA] = 1.0
+                workflow.stage_status[PipelineStage.METADATA] = PipelineStatus.COMPLETED
+                st = workflow.stage_timings[PipelineStage.METADATA]
+                st["completed_at"] = datetime.utcnow().isoformat()
+                if "started_at" in st:
+                    st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
+                await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.METADATA)
+            else:
+                logger.info("[WORKFLOW] Generating video metadata from text.txt")
+                workflow.stage_progress[PipelineStage.METADATA] = 0.1
+                await sse_manager.emit_workflow_progress(
+                    project_id, PipelineStage.METADATA, 0.1, "Generating metadata with Gemini Web",
+                )
+
+                from app.services import video_metadata_service
+
+                text = text_path.read_text(encoding="utf-8")
+                result = await video_metadata_service.generate_and_save(
+                    project_id, project_path, text,
+                )
+
+                workflow.stage_progress[PipelineStage.METADATA] = 1.0
+                workflow.stage_status[PipelineStage.METADATA] = PipelineStatus.COMPLETED
+                workflow.results["metadata"] = {"generated": True, "title_variants": len(result.get("title_variants", []))}
+                st = workflow.stage_timings[PipelineStage.METADATA]
+                st["completed_at"] = datetime.utcnow().isoformat()
+                if "started_at" in st:
+                    st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
+                await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.METADATA)
+
+        except Exception as e:
+            logger.warning("[WORKFLOW] Metadata stage failed (non-fatal): %s", e)
+            workflow.stage_status[PipelineStage.METADATA] = PipelineStatus.FAILED
+            workflow.results["metadata"] = {"error": str(e)}
+            st = workflow.stage_timings[PipelineStage.METADATA]
+            st["failed_at"] = datetime.utcnow().isoformat()
+            if "started_at" in st:
+                st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
+            await sse_manager.emit_workflow_stage_failed(project_id, PipelineStage.METADATA, str(e))
+
+        # ═══════════════════════════════════════════════════════════════
+        # STAGE 4: RENDER VIDEO
         # ═══════════════════════════════════════════════════════════════
         workflow.current_stage = PipelineStage.RENDER
         workflow.stage_status[PipelineStage.RENDER] = PipelineStatus.RUNNING
