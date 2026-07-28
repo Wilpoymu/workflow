@@ -367,7 +367,7 @@ export default function Shorts() {
               </div>
             )}
 
-            {(status === "ready" || status === "rendering") && suggestions.length > 0 && (
+            {suggestions.length > 0 && (status === "ready" || status === "rendering" || status === "failed") && (
               <>
                 {/* Select / Deselect All */}
                 <div className="flex items-center gap-3 mb-3">
@@ -460,7 +460,7 @@ export default function Shorts() {
               </>
             )}
 
-            {status === "failed" && errorMessage && (
+            {status === "failed" && suggestions.length === 0 && errorMessage && (
               <div className="text-center py-10">
                 <AlertCircle className="w-10 h-10 text-red-500/40 mx-auto mb-3" />
                 <p className="text-sm text-red-400 font-body mb-2">Analysis failed</p>
