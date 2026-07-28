@@ -1,6 +1,6 @@
 import { createContext, useContext, useState } from "react"
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom"
-import { LayoutDashboard, FileEdit, Image, ImageDown, Mic, Video, Zap, Scissors, FolderOpen, Menu } from "lucide-react"
+import { LayoutDashboard, FileEdit, Image, ImageDown, Mic, Video, Zap, Scissors, FolderOpen, Menu, Hash } from "lucide-react"
 import { ToastProvider } from "./components/Toast"
 import { useActiveProject } from "./hooks/useActiveProject"
 import Dashboard from "./pages/Dashboard"
@@ -10,6 +10,7 @@ import Transcribe from "./pages/Transcribe"
 import Render from "./pages/Render"
 import Workflow from "./pages/Workflow"
 import Shorts from "./pages/Shorts"
+import ShortsMetadata from "./pages/ShortsMetadata"
 import Thumbnails from "./pages/Thumbnails"
 import EmptyState from "./components/EmptyState"
 import { api } from "./api/client"
@@ -49,6 +50,7 @@ const nav = [
   { to: "/render", label: "Render", icon: Video },
   { to: "/workflow", label: "Workflow", icon: Zap },
   { to: "/shorts", label: "Shorts", icon: Scissors },
+  { to: "/shorts-metadata", label: "Metadata", icon: Hash },
 ]
 
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -153,6 +155,7 @@ export default function App() {
               <Route path="/render/:projectId" element={<Render />} />
               <Route path="/workflow/:projectId" element={<Workflow />} />
               <Route path="/shorts/:projectId" element={<Shorts />} />
+              <Route path="/shorts-metadata/:projectId" element={<ShortsMetadata />} />
               <Route path="/thumbnails/:projectId" element={<Thumbnails />} />
               <Route path="/editor" element={<NoProjectSelected page="Editor" icon={FileEdit} />} />
               <Route path="/images" element={<NoProjectSelected page="Images" icon={Image} />} />
@@ -160,6 +163,7 @@ export default function App() {
               <Route path="/render" element={<NoProjectSelected page="Render" icon={Video} />} />
               <Route path="/workflow" element={<NoProjectSelected page="Workflow" icon={Zap} />} />
               <Route path="/shorts" element={<NoProjectSelected page="Shorts" icon={Scissors} />} />
+              <Route path="/shorts-metadata" element={<NoProjectSelected page="Shorts Metadata" icon={Hash} />} />
               <Route path="/thumbnails" element={<NoProjectSelected page="Thumbnail" icon={ImageDown} />} />
             </Routes>
           </Layout>

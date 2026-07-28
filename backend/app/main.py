@@ -13,6 +13,7 @@ from app.routers.shorts import router as shorts_router
 from app.routers.gemini_bridge import router as gemini_bridge_router
 from app.routers.gems import router as gems_router
 from app.routers.thumbnails import router as thumbnails_router
+from app.routers.short_metadata import router as short_metadata_router
 from app.routers.images import save_image
 from app.services import project_service
 from app.services.forge_bridge import bridge
@@ -58,6 +59,7 @@ app.include_router(shorts_router)
 app.include_router(gemini_bridge_router)
 app.include_router(gems_router)
 app.include_router(thumbnails_router)
+app.include_router(short_metadata_router)
 app.include_router(project_settings_router)
 
 
