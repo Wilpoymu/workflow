@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { useParams } from "react-router-dom"
+import { useParams, Link } from "react-router-dom"
 import {
   Scissors,
   Play,
@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronUp,
   BookText,
+  Sparkles,
 } from "lucide-react"
 import PageHeader from "../components/PageHeader"
 import Card from "../components/Card"
@@ -105,6 +106,10 @@ export default function Shorts() {
   // Expanded text state per segment
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
+  // Metadata per short
+  const [metadataLoading, setMetadataLoading] = useState<number | null>(null)
+  const [existingMetadata, setExistingMetadata] = useState<Set<string>>(new Set())
+
   const toggleExpanded = (index: number) => {
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -131,7 +136,18 @@ export default function Shorts() {
   useEffect(() => {
     if (!projectId) return
     loadDownloads()
+    loadExistingMetadata()
   }, [projectId])
+
+  const loadExistingMetadata = async () => {
+    if (!projectId) return
+    try {
+      const res = await api.getShortsMetadata(projectId)
+      if (res.metadata && typeof res.metadata === "object") {
+        setExistingMetadata(new Set(Object.keys(res.metadata)))
+      }
+    } catch {}
+  }
 
   const loadDownloads = async () => {
     if (!projectId) return
@@ -262,6 +278,20 @@ export default function Shorts() {
   const selectedCount = selected.size
   const segmentedCount = suggestions.length
 
+  const handleGenerateShortMetadata = async (index: number, text: string) => {
+    if (!projectId) return
+    setMetadataLoading(index)
+    try {
+      await api.generateShortsMetadata(projectId, { index: String(index), text, platform: "both" })
+      setExistingMetadata((prev) => new Set(prev).add(String(index)))
+      toast("Metadata generated", "success")
+    } catch (err: any) {
+      toast(err?.message ?? "Failed to generate metadata", "error")
+    } finally {
+      setMetadataLoading(null)
+    }
+  }
+
   const handleScriptSelect = (startSec: number, endSec: number, text: string, startWordIdx: number, endWordIdx: number) => {
     const idx = suggestions.length > 0 ? Math.max(...suggestions.map((s) => s.index)) + 1 : 0
     const duration = endSec - startSec
@@ -386,9 +416,13 @@ export default function Shorts() {
                   >
                     Deselect All
                   </button>
-                  <span className="text-xs text-gray-500 ml-auto font-mono">
-                    {selectedCount} segment{selectedCount !== 1 ? "s" : ""} selected
-                  </span>
+                  <Link
+                    to={`/metadata/shorts/${projectId}`}
+                    className="text-xs text-accent hover:text-accent-light transition-colors ml-auto flex items-center gap-1"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    View Metadata
+                  </Link>
                 </div>
 
                 {/* Segment List */}
@@ -429,6 +463,18 @@ export default function Shorts() {
                             >
                               {formatReason(seg.reason)}
                             </span>
+                            <button
+                              onClick={(e) => { e.preventDefault(); handleGenerateShortMetadata(seg.index, seg.text_preview) }}
+                              disabled={metadataLoading === seg.index}
+                              className="text-[11px] px-2 py-0.5 rounded-full border border-border text-gray-500 hover:text-accent hover:border-accent/30 transition-colors flex items-center gap-1"
+                            >
+                              {metadataLoading === seg.index ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Sparkles className="w-3 h-3" />
+                              )}
+                              {metadataLoading === seg.index ? "..." : existingMetadata.has(String(seg.index)) ? "Metadata ✓" : "Metadata"}
+                            </button>
                           </div>
                           <div className="relative">
                             <p
@@ -685,6 +731,7 @@ export default function Shorts() {
           onClose={() => setShowScriptSelector(false)}
         />
       )}
+
     </div>
   )
 }

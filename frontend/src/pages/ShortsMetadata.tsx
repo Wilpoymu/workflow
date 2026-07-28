@@ -201,7 +201,7 @@ export default function ShortsMetadata() {
     setLoading(true)
     setResult(null)
     try {
-      const res = await api.generateShortsMetadata(projectId, { text: text.trim(), platform })
+      const res = await api.generateShortsMetadataLegacy(projectId, { text: text.trim(), platform })
       setResult(res)
       const count = [res.tiktok, res.youtube].filter(Boolean).length
       toast(`Metadata generated for ${count} platform${count > 1 ? "s" : ""}`, "success")

@@ -2,9 +2,10 @@ import asyncio
 import json
 import logging
 import re
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
-from app.config import settings
 from app.services.gemini_web import GeminiWebClient
 from app.services.gemini_cookie_store import cookie_store
 
@@ -39,50 +40,36 @@ RESPONDE EXACTAMENTE CON ESTE FORMATO:
 
 No expliques nada. Solo devuelve el bloque ### FRAGMENTO 1 con el JSON dentro."""
 
+SHORTS_METADATA_PATH = "metadata/shorts.json"
+
 
 def _parse_metadata_response(response_text: str) -> dict[str, Any] | None:
-    """Extract JSON metadata from a Gemini Web response in ### FRAGMENTO N format."""
     text = response_text.strip()
-
-    # Try to extract content after ### FRAGMENTO 1
-    m = re.search(
-        r"###\s*FRAGMENTO\s+1\s*\n(.*)",
-        text,
-        re.IGNORECASE | re.DOTALL,
-    )
+    m = re.search(r"###\s*FRAGMENTO\s+1\s*\n(.*)", text, re.IGNORECASE | re.DOTALL)
     if m:
         content = m.group(1).strip()
-
-        # Remove markdown code fences if present
         content = re.sub(r"^```(?:json)?\s*\n?", "", content)
         content = re.sub(r"\n```\s*$", "", content)
-
         try:
             return json.loads(content)
         except json.JSONDecodeError:
-            logger.warning("Failed to parse JSON from FRAGMENTO block: %s", content[:200])
-            # Try to extract JSON object from the content
-            json_match = re.search(r"\{.*\}", content, re.DOTALL)
+            json_match = re.search(r"\{[\s\S]*\}", content)
             if json_match:
                 try:
                     return json.loads(json_match.group(0))
                 except json.JSONDecodeError:
                     pass
-
-    # Fallback: try to find any JSON object in the entire response
-    json_match = re.search(r"\{.*\}", text, re.DOTALL)
+    json_match = re.search(r"\{[\s\S]*\}", text)
     if json_match:
         try:
             return json.loads(json_match.group(0))
         except json.JSONDecodeError:
             pass
-
     return None
 
 
 def _clean_tag(tag: str) -> str:
-    tag = tag.strip().strip("#").strip()
-    return tag
+    return tag.strip().strip("#").strip()
 
 
 def _build_result(data: dict, platform: str, text: str) -> dict[str, Any]:
@@ -105,10 +92,27 @@ def _build_result(data: dict, platform: str, text: str) -> dict[str, Any]:
             "hashtags": [_clean_tag(h) for h in youtube.get("hashtags", []) if h],
             "category": youtube.get("category", ""),
         }
+    result["generated_at"] = datetime.now(timezone.utc).isoformat()
     return result
 
 
-async def generate_metadata(text: str, platform: str = "both") -> dict[str, Any]:
+def _load_all(project_dir: Path) -> dict[str, Any]:
+    path = project_dir / SHORTS_METADATA_PATH
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {}
+
+
+def _save_all(project_dir: Path, data: dict[str, Any]) -> None:
+    path = project_dir / SHORTS_METADATA_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+async def generate_shorts_metadata(text: str, platform: str = "both") -> dict[str, Any]:
     if not text or not text.strip():
         raise ValueError("Text is required to generate metadata")
 
@@ -131,28 +135,31 @@ async def generate_metadata(text: str, platform: str = "both") -> dict[str, Any]
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            logger.info(
-                "Generating shorts metadata via Gemini Web (attempt %d/%d, profile: %s)",
-                attempt, MAX_RETRIES,
-                profile.get("profile_label", "unknown"),
-            )
-
             raw = client.chat(user_prompt, system_prompt=SYSTEM_PROMPT)
             parsed = _parse_metadata_response(raw)
-
             if not parsed:
                 raise RuntimeError("Failed to parse Gemini Web response as metadata JSON")
-
             return _build_result(parsed, platform, text)
-
         except Exception as e:
             last_error = e
-            logger.warning("Gemini Web attempt %d failed: %s", attempt, e)
             if attempt < MAX_RETRIES:
                 client = GeminiWebClient(psid, psidts)
                 await asyncio.sleep(RETRY_DELAY_SECONDS * attempt)
 
-    raise RuntimeError(
-        f"Gemini Web: all {MAX_RETRIES} attempts failed. "
-        f"Last error: {last_error}"
-    ) from last_error
+    raise RuntimeError(f"Gemini Web: all {MAX_RETRIES} attempts failed. Last error: {last_error}") from last_error
+
+
+async def generate_and_save(project_dir: Path, text: str, index: str, platform: str = "both") -> dict[str, Any]:
+    result = await generate_shorts_metadata(text, platform)
+    all_data = _load_all(project_dir)
+    result["index"] = index
+    all_data[index] = result
+    _save_all(project_dir, all_data)
+    return result
+
+
+async def get_metadata(project_dir: Path, index: str | None = None) -> Any:
+    all_data = _load_all(project_dir)
+    if index is not None:
+        return all_data.get(index)
+    return all_data

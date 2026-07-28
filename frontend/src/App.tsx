@@ -1,6 +1,6 @@
 import { createContext, useContext, useState } from "react"
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom"
-import { LayoutDashboard, FileEdit, Image, ImageDown, Mic, Video, Zap, Scissors, FolderOpen, Menu, Hash } from "lucide-react"
+import { LayoutDashboard, FileEdit, Image, ImageDown, Mic, Video, Zap, Scissors, FolderOpen, Menu, Hash, Sparkles } from "lucide-react"
 import { ToastProvider } from "./components/Toast"
 import { useActiveProject } from "./hooks/useActiveProject"
 import Dashboard from "./pages/Dashboard"
@@ -11,6 +11,8 @@ import Render from "./pages/Render"
 import Workflow from "./pages/Workflow"
 import Shorts from "./pages/Shorts"
 import ShortsMetadata from "./pages/ShortsMetadata"
+import ShortsMetadataList from "./pages/ShortsMetadataList"
+import VideoMetadata from "./pages/VideoMetadata"
 import Thumbnails from "./pages/Thumbnails"
 import EmptyState from "./components/EmptyState"
 import { api } from "./api/client"
@@ -51,6 +53,8 @@ const nav = [
   { to: "/workflow", label: "Workflow", icon: Zap },
   { to: "/shorts", label: "Shorts", icon: Scissors },
   { to: "/shorts-metadata", label: "Metadata", icon: Hash },
+  { to: "/metadata/shorts", label: "Shorts SEO", icon: Hash },
+  { to: "/metadata", label: "Video SEO", icon: Sparkles },
 ]
 
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -156,6 +160,8 @@ export default function App() {
               <Route path="/workflow/:projectId" element={<Workflow />} />
               <Route path="/shorts/:projectId" element={<Shorts />} />
               <Route path="/shorts-metadata/:projectId" element={<ShortsMetadata />} />
+              <Route path="/metadata/shorts/:projectId" element={<ShortsMetadataList />} />
+              <Route path="/metadata/:projectId" element={<VideoMetadata />} />
               <Route path="/thumbnails/:projectId" element={<Thumbnails />} />
               <Route path="/editor" element={<NoProjectSelected page="Editor" icon={FileEdit} />} />
               <Route path="/images" element={<NoProjectSelected page="Images" icon={Image} />} />
@@ -164,6 +170,8 @@ export default function App() {
               <Route path="/workflow" element={<NoProjectSelected page="Workflow" icon={Zap} />} />
               <Route path="/shorts" element={<NoProjectSelected page="Shorts" icon={Scissors} />} />
               <Route path="/shorts-metadata" element={<NoProjectSelected page="Shorts Metadata" icon={Hash} />} />
+              <Route path="/metadata/shorts" element={<NoProjectSelected page="Shorts SEO" icon={Hash} />} />
+              <Route path="/metadata" element={<NoProjectSelected page="Video SEO" icon={Sparkles} />} />
               <Route path="/thumbnails" element={<NoProjectSelected page="Thumbnail" icon={ImageDown} />} />
             </Routes>
           </Layout>

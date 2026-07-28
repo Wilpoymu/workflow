@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router-dom"
 import {
   Play, Square, CheckCircle, XCircle, Loader2, Image as ImageIcon, Mic,
   Video, FileText, ImageDown, Sparkles, AlertTriangle,
-  RefreshCw, Users, Camera, Activity,
+  RefreshCw, Users, Camera, Activity, Hash,
 } from "lucide-react"
 import Card from "../components/Card"
 import ProgressBar from "../components/ProgressBar"
@@ -18,7 +18,7 @@ import type {
 
 // ─── Stage model (preserved from previous impl) ───────────
 
-type StageKey = "prompts" | "generate" | "transcribe" | "render" | "thumbnail"
+type StageKey = "prompts" | "generate" | "transcribe" | "render" | "thumbnail" | "metadata"
 type StageStatus = "idle" | "running" | "completed" | "failed"
 
 interface StageState {
@@ -40,6 +40,7 @@ const STAGE_CONFIG: Record<StageKey, { label: string; icon: typeof ImageIcon; co
   transcribe: { label: "Transcripción", icon: Mic, color: "text-blue-400", description: "Whisper genera timestamps por palabra" },
   render: { label: "Render", icon: Video, color: "text-green-400", description: "Ensambla el video con Ken Burns sincronizado al audio" },
   thumbnail: { label: "Thumbnail", icon: ImageDown, color: "text-yellow-400", description: "Thumbnail de YouTube con análisis Gemini + fondo IA" },
+  metadata: { label: "Video SEO", icon: Hash, color: "text-indigo-400", description: "Títulos, descripción, tags SEO para el video completo" },
 }
 
 const LOG_RING_MAX = 50
@@ -152,6 +153,7 @@ export default function Workflow() {
       transcribe: { status: "idle", progress: 0, message: "" },
       render: { status: "idle", progress: 0, message: "" },
       thumbnail: { status: "idle", progress: 0, message: "" },
+      metadata: { status: "idle", progress: 0, message: "" },
     },
     error: null,
   })
@@ -214,6 +216,7 @@ export default function Workflow() {
           transcribe: buildStage(res, "transcribe"),
           render: buildStage(res, "render"),
           thumbnail: buildStage(res, "thumbnail"),
+          metadata: buildStage(res, "metadata"),
         },
         error: res.error,
       })
@@ -241,6 +244,7 @@ export default function Workflow() {
             transcribe: { ...prev.stages.transcribe, status: (res.stages.transcribe?.status || prev.stages.transcribe.status) as StageStatus, progress: res.stages.transcribe?.progress ?? prev.stages.transcribe.progress },
             render: { ...prev.stages.render, status: (res.stages.render?.status || prev.stages.render.status) as StageStatus, progress: res.stages.render?.progress ?? prev.stages.render.progress },
             thumbnail: { ...prev.stages.thumbnail, status: (res.stages.thumbnail?.status || prev.stages.thumbnail.status) as StageStatus, progress: res.stages.thumbnail?.progress ?? prev.stages.thumbnail.progress },
+            metadata: { ...prev.stages.metadata, status: (res.stages.metadata?.status || prev.stages.metadata.status) as StageStatus, progress: res.stages.metadata?.progress ?? prev.stages.metadata.progress },
           },
           error: res.error,
         }))
@@ -399,7 +403,7 @@ export default function Workflow() {
           )}
           <h1 className="text-2xl font-bold text-white">Workflow Control Room</h1>
           <p className="mt-1 text-sm text-gray-500 font-body">
-            Pipeline completo: prompts → imágenes → transcripción → render → thumbnail
+            Pipeline completo: prompts → imágenes → transcripción → render → thumbnail → metadata SEO
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
@@ -603,9 +607,16 @@ export default function Workflow() {
                     )}
                   </div>
                   {/* Right: badge */}
-                  <div className="shrink-0">
+                  <div className="shrink-0 flex flex-col items-end gap-1">
                     {stage.status === "completed" && (
-                      <span className="px-2 py-1 text-xs font-medium text-green-400 bg-green-500/10 rounded">Done</span>
+                      stageKey === "metadata" && projectId ? (
+                        <Link to={`/metadata/${projectId}`}
+                          className="px-2 py-1 text-xs font-medium text-indigo-400 bg-indigo-500/10 rounded hover:bg-indigo-500/20 transition-colors">
+                          View
+                        </Link>
+                      ) : (
+                        <span className="px-2 py-1 text-xs font-medium text-green-400 bg-green-500/10 rounded">Done</span>
+                      )
                     )}
                     {stage.status === "running" && (
                       <span className="px-2 py-1 text-xs font-medium text-accent bg-accent/10 rounded">{Math.round(stage.progress * 100)}%</span>
@@ -631,6 +642,7 @@ export default function Workflow() {
                 <li className="flex gap-2"><span className="text-accent font-mono">3.</span><span><strong className="text-gray-300">Transcribe:</strong> Whisper con timestamps por palabra</span></li>
                 <li className="flex gap-2"><span className="text-accent font-mono">4.</span><span><strong className="text-gray-300">Render:</strong> Ken Burns sincronizado al audio</span></li>
                 <li className="flex gap-2"><span className="text-accent font-mono">5.</span><span><strong className="text-gray-300">Thumbnail:</strong> (Opcional) Gemini análisis + background IA</span></li>
+                <li className="flex gap-2"><span className="text-accent font-mono">6.</span><span><strong className="text-gray-300">Video SEO:</strong> Títulos, descripción, tags, capítulos con Gemini Web</span></li>
               </ol>
             </div>
           )}
