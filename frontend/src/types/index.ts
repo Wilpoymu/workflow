@@ -45,6 +45,7 @@ export interface ProjectMetadata {
     timestamp: string
   }>
   prompt_style?: string
+  whisper_model?: string
 }
 
 export interface Fragment {
@@ -106,3 +107,44 @@ export type {
   TimelineApiResponse,
   ExportApiResponse,
 } from "./timeline"
+
+// ─── Thumbnail ──────────────────────────────────────────────
+
+export interface ThumbnailVariant {
+  variant: number
+  url: string
+  seed: number
+}
+
+export interface ThumbnailStatus {
+  project_id: string
+  status: "idle" | "analyzing" | "generating" | "composing" | "done" | "failed"
+  progress: number
+  thumbnail_url: string | null
+  variants: ThumbnailVariant[]
+  error: string | null
+}
+
+// ─── Workflow Control Room ─────────────────────────────────
+
+export interface KpiSnapshot {
+  fragments: { total: number; withPrompt: number }
+  images: { generated: number; total: number; failed: number }
+  audio: { ready: boolean; words?: number }
+  output: { hasVideo: boolean; path?: string }
+}
+
+export interface ReadinessCheck {
+  id: string
+  label: string
+  description: string
+  status: "ok" | "warn" | "error"
+  action?: { label: string; to?: string }
+}
+
+export interface LogEntry {
+  timestamp: string // ISO
+  message: string
+  level: "info" | "warn" | "error"
+  stage?: string
+}

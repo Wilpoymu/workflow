@@ -8,16 +8,27 @@ import shutil
 import subprocess
 import tempfile
 import unicodedata
+from io import BytesIO
 from pathlib import Path
 from typing import Callable, Optional
 
+# Ensure CUDA_PATH is set for CuPy (silences harmless warning)
+if os.name == "nt" and "CUDA_PATH" not in os.environ:
+    try:
+        import nvidia.cuda_runtime
+        pkg_dir = nvidia.cuda_runtime.__path__[0]
+        os.environ["CUDA_PATH"] = pkg_dir
+    except Exception:
+        pass
+
+import cupy as cp
+import numpy as np
+from cupyx.scipy.ndimage import affine_transform
 from PIL import Image
 
 from app.config import settings
 from app.services.clip_renderer import (
     _run_ffmpeg,
-    _detect_hw_encoder,
-    render_image_clip,
     concat_clips,
 )
 
@@ -25,6 +36,8 @@ logger = logging.getLogger(__name__)
 
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
 MOVEMENTS = ['zoom_in', 'zoom_out', 'pan_right', 'pan_left', 'pan_up', 'pan_down']
+
+_SUBPROCESS_FLAGS = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 
 
 class KenBurnsConfig:
@@ -230,44 +243,252 @@ def load_timestamps(json_path: str, n_images: int, audio_duration: float) -> lis
     with open(json_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
-    # Filter fragments that have start_time (matched to transcript)
     timed = [f for f in data if f.get("start_time") is not None]
 
     if not timed:
         return [audio_duration / n_images] * n_images
 
-    durations = []
     matched_durs = []
     for i, frag in enumerate(timed):
-        if frag.get("start_time") is not None:
-            if i < len(timed) - 1 and timed[i + 1].get("start_time") is not None:
-                matched_durs.append(timed[i + 1]["start_time"] - frag["start_time"])
+        if i < len(timed) - 1 and timed[i + 1].get("start_time") is not None:
+            matched_durs.append(timed[i + 1]["start_time"] - frag["start_time"])
     avg_dur = sum(matched_durs) / len(matched_durs) if matched_durs else audio_duration / max(len(timed), n_images)
 
-    for i, frag in enumerate(timed):
+    durations = []
+    for i, frag in enumerate(data):
         frag_start = frag.get("start_time")
         if frag_start is not None:
-            if i < len(timed) - 1:
-                next_start = timed[i + 1].get("start_time")
-                if next_start is not None:
-                    dur = next_start - frag_start
-                else:
-                    dur = avg_dur
+            next_start = None
+            for j in range(i + 1, len(data)):
+                if data[j].get("start_time") is not None:
+                    next_start = data[j]["start_time"]
+                    break
+            if next_start is not None:
+                dur = next_start - frag_start
             else:
                 dur = audio_duration - frag_start
+            if dur <= 0:
+                dur = avg_dur
         else:
             dur = avg_dur
-
-        if dur <= 0:
-            dur = avg_dur
-
         durations.append(dur)
 
-    # If fewer timed fragments than images, pad remaining with average
-    while len(durations) < n_images:
-        durations.append(avg_dur)
+    # Preserve fragment order, ensure total sum equals audio_duration
+    total = sum(durations)
+    if total > 0 and abs(total - audio_duration) > 0.01:
+        scale = audio_duration / total
+        durations = [d * scale for d in durations]
 
-    return durations[:n_images]
+    # Match count to number of images
+    if len(durations) < n_images:
+        durations.extend([avg_dur] * (n_images - len(durations)))
+    elif len(durations) > n_images:
+        durations = durations[:n_images]
+
+    return durations
+
+
+def _scale_cover(image_path: str, canvas_w: int, canvas_h: int) -> tuple[int, int]:
+    img = Image.open(image_path)
+    img_ratio = img.width / img.height
+    canvas_ratio = canvas_w / canvas_h
+
+    if img_ratio > canvas_ratio:
+        new_h = canvas_h
+        new_w = int(new_h * img_ratio)
+    else:
+        new_w = canvas_w
+        new_h = int(new_w / img_ratio)
+
+    return new_w, new_h
+
+
+def _zoompan_expr(movement: str, frames: int, out_w: int, out_h: int,
+                  canvas_w: int, canvas_h: int, fps: int) -> str:
+    zf = canvas_w / out_w
+    mx = canvas_w - out_w
+    my = canvas_h - out_h
+    cx = mx / 2
+    cy = my / 2
+
+    d = frames - 1 if frames > 1 else 1
+    T = f"on/{d}"
+    eased = f"({T})*({T})*(3-2*({T}))"
+
+    if movement == 'zoom_in':
+        z = f"1+({zf}-1)*({eased})"
+        x = f"(in_w - in_w/(1+({zf}-1)*({eased})))/2"
+        y = f"(in_h - in_h/(1+({zf}-1)*({eased})))/2"
+    elif movement == 'zoom_out':
+        z = f"{zf}-({zf}-1)*({eased})"
+        x = f"(in_w - in_w/({zf}-({zf}-1)*({eased})))/2"
+        y = f"(in_h - in_h/({zf}-({zf}-1)*({eased})))/2"
+    elif movement == 'pan_right':
+        z = f"{zf}"
+        x = f"{mx} * ({eased})"
+        y = f"{cy}"
+    elif movement == 'pan_left':
+        z = f"{zf}"
+        x = f"{mx} * (1-({eased}))"
+        y = f"{cy}"
+    elif movement == 'pan_up':
+        z = f"{zf}"
+        x = f"{cx}"
+        y = f"{my} * ({eased})"
+    else:  # pan_down
+        z = f"{zf}"
+        x = f"{cx}"
+        y = f"{my} * (1-({eased}))"
+
+    return f"zoompan=z='{z}':x='{x}':y='{y}':d={frames}:s={out_w}x{out_h}:fps={fps}"
+
+
+def _detect_hw_encoder() -> tuple[str, list[str]]:
+    try:
+        nv = subprocess.run(
+            ['nvidia-smi'], capture_output=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
+        )
+        if nv.returncode == 0:
+            return 'h264_nvenc', [
+                '-c:v', 'h264_nvenc',
+                '-preset', 'p1',
+                '-rc', 'vbr',
+            ]
+    except FileNotFoundError:
+        pass
+
+    try:
+        enc = subprocess.run(
+            ['ffmpeg', '-hide_banner', '-encoders'],
+            capture_output=True, text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
+        )
+        if 'h264_amf' in enc.stdout:
+            return 'h264_amf', [
+                '-c:v', 'h264_amf',
+                '-preset', 'speed',
+                '-quality', 'balanced',
+            ]
+    except FileNotFoundError:
+        pass
+
+    return 'libx264', ['-c:v', 'libx264', '-preset', 'veryfast']
+
+
+# ── GPU Ken Burns helpers ────────────────────────────────────
+
+
+def _smoothstep(t: float) -> float:
+    return t * t * (3.0 - 2.0 * t)
+
+
+def _render_clip_gpu(
+    img: Image.Image,
+    movement: str,
+    n_frames: int,
+    fps: int,
+    out_w: int,
+    out_h: int,
+    intensity: float,
+    clip_encoder: list[str],
+    output_path: str,
+) -> bool:
+    """Render a single Ken Burns clip on GPU.
+
+    Replicates the original canvas+margins approach:
+      - canvas is output enlarged by margins (intensity)
+      - image is scaled to COVER the canvas
+      - at z=1 the view shows the full canvas (widest)
+      - at z=zf the view is zoomed in (closest)
+      - pan moves the view within the canvas at fixed zoom zf
+    """
+    in_w, in_h = img.size
+
+    margin_x = int(out_w * intensity)
+    margin_y = int(out_h * intensity)
+    canvas_w = out_w + margin_x * 2
+    canvas_h = out_h + margin_y * 2
+    zf = canvas_w / out_w  # max zoom factor (~1 + 2*intensity)
+
+    # Scale factor to COVER the canvas with the image
+    img_scale = max(canvas_w / in_w, canvas_h / in_h)
+
+    # Upload base image to GPU (float32 RGB [0,1])
+    host = np.array(img, dtype=np.float32) / 255.0
+    gpu_img = cp.asarray(host)
+
+    # Start FFmpeg subprocess (rawvideo → hw encoder)
+    cmd = [
+        'ffmpeg', '-y',
+        '-f', 'rawvideo',
+        '-pix_fmt', 'rgb24',
+        '-s', f'{out_w}x{out_h}',
+        '-r', str(fps),
+        '-i', 'pipe:',
+    ]
+    cmd.extend(clip_encoder)
+    cmd.extend([
+        '-pix_fmt', 'yuv420p',
+        '-an',
+        str(output_path),
+    ])
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, creationflags=_SUBPROCESS_FLAGS)
+
+    frame_gpu = cp.empty((out_h, out_w, 3), dtype=cp.float32)
+    denom = max(n_frames - 1, 1)
+
+    for fi in range(n_frames):
+        prog = fi / denom
+        eased = _smoothstep(prog)
+
+        # Zoom: z=1 (full canvas visible) → z=zf (zoomed in)
+        if movement == 'zoom_in':
+            z = 1.0 + (zf - 1.0) * eased
+        elif movement == 'zoom_out':
+            z = zf - (zf - 1.0) * eased
+        else:
+            z = zf
+
+        # Pan in canvas coordinates
+        vw = out_w / z   # visible width in canvas pixels
+        vh = out_h / z   # visible height
+        pan_range_x = max(0.0, (canvas_w - vw) / 2.0)
+        pan_range_y = max(0.0, (canvas_h - vh) / 2.0)
+
+        if movement == 'pan_right':
+            px = -pan_range_x + 2.0 * pan_range_x * eased
+            py = 0.0
+        elif movement == 'pan_left':
+            px = pan_range_x - 2.0 * pan_range_x * eased
+            py = 0.0
+        elif movement == 'pan_up':
+            px = 0.0
+            py = pan_range_y - 2.0 * pan_range_y * eased
+        elif movement == 'pan_down':
+            px = 0.0
+            py = -pan_range_y + 2.0 * pan_range_y * eased
+        else:
+            px = py = 0.0
+
+        # Combined affine: output → canvas → image
+        # output → canvas: scale = 1/z, translate = canvas_center - out_center/z + pan
+        # canvas → image:  scale = img_scale, translate = (image_overhang)/2
+        s = 1.0 / (z * img_scale)
+        tx = in_w / 2.0 + px / img_scale - vw / (2.0 * img_scale)
+        ty = in_h / 2.0 + py / img_scale - vh / (2.0 * img_scale)
+        M = cp.array([[s, 0, ty], [0, s, tx]], dtype=cp.float64)
+
+        for c in range(3):
+            frame_gpu[:, :, c] = affine_transform(gpu_img[:, :, c], M, output_shape=(out_h, out_w), order=1)
+
+        # Download back, convert to uint8 RGB, write to pipe
+        frame_host = cp.asnumpy(cp.clip(frame_gpu * 255.0, 0, 255).astype(cp.uint8))
+        proc.stdin.write(frame_host.tobytes())
+
+    proc.stdin.close()
+    ret = proc.wait()
+    return ret == 0
 
 
 async def render_kenburns_video(
@@ -328,6 +549,16 @@ async def render_kenburns_video(
     if script_txt.exists():
         script_path = str(script_txt)
     if not script_path:
+        audio_txt = audio_dir / "text.txt"
+        if audio_txt.exists():
+            script_path = str(audio_txt)
+    if not script_path:
+        # Fallback: any .txt file in audio/ that isn't script.srt
+        for txt_file in sorted(audio_dir.glob("*.txt")):
+            if txt_file.name != "script.srt":
+                script_path = str(txt_file)
+                break
+    if not script_path:
         root_txt = project_path / "text.txt"
         if root_txt.exists():
             script_path = str(root_txt)
@@ -366,6 +597,13 @@ async def render_kenburns_video(
     hw_encoder, hw_params = _detect_hw_encoder()
     logger.info(f"Detected encoder: {hw_encoder}")
 
+    if hw_encoder == 'h264_nvenc':
+        clip_encoder = ['-c:v', 'h264_nvenc', '-preset', 'p1']
+    elif hw_encoder == 'h264_amf':
+        clip_encoder = ['-c:v', 'h264_amf', '-preset', 'speed', '-quality', 'balanced']
+    else:
+        clip_encoder = ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18']
+
     clip_files = []
 
     for i, (img_path, movement) in enumerate(zip(images, movements)):
@@ -378,17 +616,17 @@ async def render_kenburns_video(
         clip_files.append(clip_path)
 
         frames_each_i = frames_per_clip[i]
-        duration_sec = frames_each_i / config.fps
 
+        img = Image.open(img_path).convert("RGB")
         loop = asyncio.get_running_loop()
         ok = await loop.run_in_executor(
-            None, render_image_clip,
-            str(img_path), movement, duration_sec, config.fps,
-            config.width, config.height, str(clip_path), config.intensity,
+            None,
+            _render_clip_gpu,
+            img, movement, frames_each_i, config.fps,
+            out_w, out_h, config.intensity, clip_encoder, str(clip_path),
         )
-
         if not ok:
-            logger.error(f"FFmpeg error for {img_path}")
+            logger.error(f"GPU render failed for {img_path}")
             continue
 
     if not clip_files:

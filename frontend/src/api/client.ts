@@ -50,6 +50,18 @@ export const api = {
   deleteProject: (id: string) =>
     request<{ project_id: string }>(`/api/projects/${id}`, { method: "DELETE" }),
 
+  // Settings
+  getSettings: (projectId: string) =>
+    request<{ project_id: string; settings: Record<string, any> }>(
+      `/api/projects/${projectId}/settings`,
+    ),
+
+  updateSettings: (projectId: string, settings: Record<string, any>) =>
+    request<{ project_id: string; settings: Record<string, any>; saved: boolean }>(
+      `/api/projects/${projectId}/settings`,
+      { method: "PUT", body: JSON.stringify({ settings }) },
+    ),
+
   // Fragments
   listFragments: (projectId: string) =>
     request<{ fragments: import("../types").Fragment[] }>(
@@ -101,6 +113,21 @@ export const api = {
     ),
 
   imageEventsUrl: (projectId: string) => `/api/projects/${projectId}/images/events`,
+
+  // Thumbnails
+  generateThumbnail: (projectId: string, data: { script: string; mode: "single" | "ab_testing"; variant_count?: number; use_existing_scene?: boolean }) =>
+    request<{ project_id: string; status: string; mode: string; variant_count: number }>(
+      `/api/projects/${projectId}/thumbnails/generate`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
+  getThumbnailStatus: (projectId: string) =>
+    request<import("../types").ThumbnailStatus>(
+      `/api/projects/${projectId}/thumbnails/status`,
+    ),
+
+  thumbnailEventsUrl: (projectId: string) =>
+    `/api/projects/${projectId}/thumbnails/events`,
 
   // Transcription
   getMediaInfo: (projectId: string) =>
@@ -178,6 +205,12 @@ export const api = {
   },
 
   // Word timestamps for script selection
+  setWhisperModel: (projectId: string, model: string) =>
+    request<{ project_id: string; whisper_model: string; saved: boolean }>(
+      `/api/projects/${projectId}/transcribe/model`,
+      { method: "PUT", body: JSON.stringify({ model }) },
+    ),
+
   getWordTimestamps: (projectId: string) =>
     request<{ words: Array<{ text: string; start: number; end: number; type: string }>; total: number }>(
       `/api/projects/${projectId}/transcribe/words`,
@@ -291,6 +324,63 @@ export const api = {
   shortsDownloadUrl: (projectId: string, filename: string) =>
     `/api/projects/${projectId}/shorts/file/${filename}`,
 
+  // Shorts Metadata (legacy)
+  generateShortsMetadataLegacy: (projectId: string, data: { text: string; platform?: string }) =>
+    request<{
+      tiktok?: {
+        title: string
+        description: string
+        hashtags: string[]
+        tags: string[]
+        audio_suggestion: string | null
+      }
+      youtube?: {
+        title: string
+        description: string
+        tags: string[]
+        hashtags: string[]
+        category: string
+      }
+      generated_from?: string
+    }>(`/api/projects/${projectId}/shorts/metadata`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // Video Metadata
+  generateVideoMetadata: (projectId: string, data: { text: string }) =>
+    request<Record<string, any>>(`/api/projects/${projectId}/metadata/video/generate`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getVideoMetadata: (projectId: string) =>
+    request<{ metadata: Record<string, any> | null }>(
+      `/api/projects/${projectId}/metadata/video`,
+    ),
+
+  updateVideoMetadata: (projectId: string, data: Record<string, any>) =>
+    request<Record<string, any>>(`/api/projects/${projectId}/metadata/video`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  validateChapters: (projectId: string) =>
+    request<Record<string, any>>(`/api/projects/${projectId}/metadata/video/validate-chapters`, {
+      method: "POST",
+    }),
+
+  // Shorts Metadata
+  generateShortsMetadata: (projectId: string, data: { index: string; text: string; platform?: string }) =>
+    request<Record<string, any>>(`/api/projects/${projectId}/metadata/shorts/generate`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getShortsMetadata: (projectId: string, index?: string) =>
+    request<{ metadata: any }>(
+      `/api/projects/${projectId}/metadata/shorts${index ? `?index=${encodeURIComponent(index)}` : ""}`,
+    ),
   // Script (full guion text)
   getScript: (projectId: string) =>
     request<{ text: string; project_id: string }>(
@@ -415,6 +505,13 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
+  // Project folder
+  openFolder: (projectId: string) =>
+    request<{ project_id: string; folder: string; opened: boolean }>(
+      `/api/projects/${projectId}/open`,
+      { method: "POST" },
+    ),
 
   // Orphaned project scanner
   scanOrphans: () =>

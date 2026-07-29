@@ -198,6 +198,7 @@ def render_image_clip(
     canvas_h: int,
     output_path: str,
     intensity: float = 0.05,
+    num_frames: int | None = None,
 ) -> bool:
     """Render a single still image as a video clip with a Ken Burns movement.
 
@@ -212,7 +213,8 @@ def render_image_clip(
     movement : str
         One of the six Ken Burns movements.
     duration_sec : float
-        Desired clip duration in seconds.
+        Desired clip duration in seconds (ignored when *num_frames* is
+        provided).
     fps : int
         Output framerate.
     canvas_w, canvas_h : int
@@ -222,6 +224,10 @@ def render_image_clip(
     intensity : float, optional
         Movement intensity factor (default 0.05, clamped 0.01–0.15
         by the caller if desired).
+    num_frames : int or None, optional
+        Exact number of frames for this clip.  When provided, the caller
+        is responsible for precision (e.g. cumulative-rounding to avoid
+        drift across clips).  Falls back to ``round(duration_sec * fps)``.
 
     Returns
     -------
@@ -241,15 +247,15 @@ def render_image_clip(
     render_canvas_w = render_w + margin_x * 2
     render_canvas_h = render_h + margin_y * 2
 
-    # Scale image to cover the render canvas
+    # Scale image to cover the render canvas (matching original ken-burns repo)
     sw, sh = _scale_cover(img_w, img_h, render_canvas_w, render_canvas_h)
 
     # Number of frames
-    num_frames = max(1, round(duration_sec * fps))
+    nframes = num_frames if num_frames is not None else max(1, round(duration_sec * fps))
 
     # Build zoompan expression
     zp_expr = _zoompan_expr(
-        movement, num_frames, render_w, render_h,
+        movement, nframes, render_w, render_h,
         render_canvas_w, render_canvas_h, fps,
     )
 
@@ -262,7 +268,8 @@ def render_image_clip(
     else:
         clip_encoder = ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "18"]
 
-    # Assemble ffmpeg command
+    # Assemble ffmpeg command — identical to original gallery_to_video.py:
+    #   image → scale to cover canvas → zoompan → encode
     cmd = [
         "ffmpeg", "-y",
         "-i", img_path,

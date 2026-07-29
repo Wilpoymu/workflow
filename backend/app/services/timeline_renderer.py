@@ -128,6 +128,20 @@ class TimelineRenderer:
         loop = asyncio.get_running_loop()
 
         # ═══════════════════════════════════════════════════════════════
+        # Pre-compute frame counts using cumulative rounding (matching
+        # the original kenburns.py precision) to avoid per-clip drift
+        # that desynchronises the video from the audio track.
+        exact = [clip.get("duration", 5.0) * fps for clip in clips]
+        cum_f: float = 0.0
+        cum_i: int = 0
+        frames_per_clip: list[int] = []
+        for ef in exact:
+            cum_f += ef
+            rounded = round(cum_f)
+            frames_per_clip.append(rounded - cum_i)
+            cum_i = rounded
+
+        # ═══════════════════════════════════════════════════════════════
         # PASS 1 — Render video clips  (0 % → 60 %)
         # ═══════════════════════════════════════════════════════════════
         for i, clip in enumerate(clips):
@@ -176,6 +190,7 @@ class TimelineRenderer:
                 canvas_h,
                 str(clip_out),
                 intensity,
+                frames_per_clip[i],
             )
 
             if ok:

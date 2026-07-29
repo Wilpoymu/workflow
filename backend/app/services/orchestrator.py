@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime
 
+from app.config import settings
 from app.services.forge_bridge import bridge
 from app.services.whisper_pipeline import transcribe_audio, save_transcription
 from app.services.kenburns import render_kenburns_video, KenBurnsConfig
@@ -24,8 +25,10 @@ class PipelineStage:
     GENERATE = "generate"
     TRANSCRIBE = "transcribe"
     RENDER = "render"
+    THUMBNAIL = "thumbnail"
+    METADATA = "metadata"
 
-    ALL = (PROMPTS, GENERATE, TRANSCRIBE, RENDER)
+    ALL = (PROMPTS, GENERATE, TRANSCRIBE, RENDER, THUMBNAIL, METADATA)
 
 
 class PipelineStatus:
@@ -70,6 +73,8 @@ async def start_workflow(
     concurrency: int = 2,
     accounts: list[str] | None = None,
     model: str = "NARWHAL",
+    generate_thumbnail: bool = False,
+    thumbnail_mode: str = "single",
 ) -> str:
     """
     Iniciar el pipeline completo para un proyecto.
@@ -90,12 +95,12 @@ async def start_workflow(
     await sse_manager.emit_workflow_start(project_id)
     
     # Ejecutar pipeline en background
-    asyncio.create_task(_run_pipeline(project_id, render_config or {}, concurrency, accounts or [], model))
+    asyncio.create_task(_run_pipeline(project_id, render_config or {}, concurrency, accounts or [], model, generate_thumbnail, thumbnail_mode))
     
     return project_id
 
 
-async def _run_pipeline(project_id: str, render_config: dict, concurrency: int = 2, accounts: list[str] | None = None, model: str = "NARWHAL"):
+async def _run_pipeline(project_id: str, render_config: dict, concurrency: int = 2, accounts: list[str] | None = None, model: str = "NARWHAL", generate_thumbnail: bool = False, thumbnail_mode: str = "single"):
     """Ejecutar el pipeline completo"""
     workflow = _active_workflows.get(project_id)
     if not workflow:
@@ -295,7 +300,7 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
             audio_file = audio_files[0]
             
             # Función de callback para progreso (se llama desde thread pool)
-            def progress_callback(progress: float, message: str):
+            def progress_callback(progress: float, message: str, _extra=None):
                 workflow.stage_progress[PipelineStage.TRANSCRIBE] = progress
                 asyncio.run_coroutine_threadsafe(
                     sse_manager.emit_workflow_progress(
@@ -308,10 +313,13 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
                 )
             
             # Transcribir (ejecutar en thread pool)
+            whisper_model = (project.settings.get("whisper_model") or
+                             getattr(project, "whisper_model", None) or
+                             settings.whisper_model_size)
             loop = asyncio.get_event_loop()
             segment = await loop.run_in_executor(
                 None,
-                lambda: transcribe_audio(str(audio_file), progress_callback)
+                lambda: transcribe_audio(str(audio_file), progress_callback, whisper_model)
             )
             
             # Guardar transcripción
@@ -338,7 +346,62 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
             raise
         
         # ═══════════════════════════════════════════════════════════════
-        # STAGE 3: RENDER VIDEO
+        # STAGE 3: METADATA (optional, non-fatal)
+        # ═══════════════════════════════════════════════════════════════
+        workflow.current_stage = PipelineStage.METADATA
+        workflow.stage_status[PipelineStage.METADATA] = PipelineStatus.RUNNING
+        workflow.stage_timings[PipelineStage.METADATA]["started_at"] = datetime.utcnow().isoformat()
+        await sse_manager.emit_workflow_stage_start(project_id, PipelineStage.METADATA)
+
+        try:
+            text_path = project_path / "text.txt"
+            has_text = text_path.exists() and text_path.read_text(encoding="utf-8").strip()
+
+            if not has_text:
+                logger.warning("[WORKFLOW] No text.txt found, skipping metadata stage")
+                workflow.results["metadata"] = {"skipped": True, "reason": "No text.txt found"}
+                workflow.stage_progress[PipelineStage.METADATA] = 1.0
+                workflow.stage_status[PipelineStage.METADATA] = PipelineStatus.COMPLETED
+                st = workflow.stage_timings[PipelineStage.METADATA]
+                st["completed_at"] = datetime.utcnow().isoformat()
+                if "started_at" in st:
+                    st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
+                await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.METADATA)
+            else:
+                logger.info("[WORKFLOW] Generating video metadata from text.txt")
+                workflow.stage_progress[PipelineStage.METADATA] = 0.1
+                await sse_manager.emit_workflow_progress(
+                    project_id, PipelineStage.METADATA, 0.1, "Generating metadata with Gemini Web",
+                )
+
+                from app.services import video_metadata_service
+
+                text = text_path.read_text(encoding="utf-8")
+                result = await video_metadata_service.generate_and_save(
+                    project_id, project_path, text,
+                )
+
+                workflow.stage_progress[PipelineStage.METADATA] = 1.0
+                workflow.stage_status[PipelineStage.METADATA] = PipelineStatus.COMPLETED
+                workflow.results["metadata"] = {"generated": True, "title_variants": len(result.get("title_variants", []))}
+                st = workflow.stage_timings[PipelineStage.METADATA]
+                st["completed_at"] = datetime.utcnow().isoformat()
+                if "started_at" in st:
+                    st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
+                await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.METADATA)
+
+        except Exception as e:
+            logger.warning("[WORKFLOW] Metadata stage failed (non-fatal): %s", e)
+            workflow.stage_status[PipelineStage.METADATA] = PipelineStatus.FAILED
+            workflow.results["metadata"] = {"error": str(e)}
+            st = workflow.stage_timings[PipelineStage.METADATA]
+            st["failed_at"] = datetime.utcnow().isoformat()
+            if "started_at" in st:
+                st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
+            await sse_manager.emit_workflow_stage_failed(project_id, PipelineStage.METADATA, str(e))
+
+        # ═══════════════════════════════════════════════════════════════
+        # STAGE 4: RENDER VIDEO
         # ═══════════════════════════════════════════════════════════════
         workflow.current_stage = PipelineStage.RENDER
         workflow.stage_status[PipelineStage.RENDER] = PipelineStatus.RUNNING
@@ -346,15 +409,17 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
         await sse_manager.emit_workflow_stage_start(project_id, PipelineStage.RENDER)
         
         try:
-            # Configurar Ken Burns
+            # Configurar Ken Burns — saved settings como base, render_config como override
+            saved_render = project.settings.get("render", {})
+            merged = {**saved_render, **{k: v for k, v in render_config.items() if v is not None}}
             config = KenBurnsConfig(
-                filter_mode=render_config.get("filter_mode", "all"),
-                width=render_config.get("width", 1920),
-                height=render_config.get("height", 1080),
-                fps=render_config.get("fps", 30),
-                intensity=render_config.get("intensity", 0.04),
-                seed=render_config.get("seed", 42),
-                subtitles=render_config.get("subtitles", True),
+                filter_mode=merged.get("filter_mode", "all"),
+                width=merged.get("width", 1920),
+                height=merged.get("height", 1080),
+                fps=merged.get("fps", 30),
+                intensity=merged.get("intensity", 0.04),
+                seed=merged.get("seed", 42),
+                subtitles=merged.get("subtitles", True),
             )
             
             # Función de callback para progreso
@@ -395,6 +460,68 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
             await sse_manager.emit_workflow_stage_failed(project_id, PipelineStage.RENDER, str(e))
             raise
         
+        # ═══════════════════════════════════════════════════════════════
+        # STAGE 4: THUMBNAIL (optional, non-fatal)
+        # ═══════════════════════════════════════════════════════════════
+        if generate_thumbnail:
+            workflow.current_stage = PipelineStage.THUMBNAIL
+            workflow.stage_status[PipelineStage.THUMBNAIL] = PipelineStatus.RUNNING
+            workflow.stage_timings[PipelineStage.THUMBNAIL]["started_at"] = datetime.utcnow().isoformat()
+            await sse_manager.emit_workflow_stage_start(project_id, PipelineStage.THUMBNAIL)
+
+            try:
+                # Read script from project directory
+                script = ""
+                text_path = project_path / "text.txt"
+                if text_path.exists():
+                    script = text_path.read_text(encoding="utf-8")
+
+                if not script:
+                    logger.warning("[WORKFLOW] No script found, skipping thumbnail stage")
+                    workflow.results["thumbnail"] = {"skipped": True, "reason": "No script found"}
+                    workflow.stage_progress[PipelineStage.THUMBNAIL] = 1.0
+                    workflow.stage_status[PipelineStage.THUMBNAIL] = PipelineStatus.COMPLETED
+                    st = workflow.stage_timings[PipelineStage.THUMBNAIL]
+                    st["completed_at"] = datetime.utcnow().isoformat()
+                    if "started_at" in st:
+                        st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
+                    await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.THUMBNAIL)
+                else:
+                    from app.models.thumbnail import ThumbnailMode, ThumbnailRequest
+                    from app.services.thumbnail_service import generate_thumbnail as run_thumbnail
+
+                    request = ThumbnailRequest(
+                        script=script,
+                        mode=ThumbnailMode.AB_TESTING if thumbnail_mode == "ab" else ThumbnailMode.SINGLE,
+                        variant_count=2,
+                        use_existing_scene=False,
+                    )
+
+                    workflow.stage_progress[PipelineStage.THUMBNAIL] = 0.1
+                    await sse_manager.emit_workflow_progress(project_id, PipelineStage.THUMBNAIL, 0.1, "Starting thumbnail generation")
+
+                    paths = await run_thumbnail(project_id, request)
+
+                    workflow.stage_progress[PipelineStage.THUMBNAIL] = 1.0
+                    workflow.stage_status[PipelineStage.THUMBNAIL] = PipelineStatus.COMPLETED
+                    workflow.results["thumbnail"] = {"paths": paths, "count": len(paths)}
+                    st = workflow.stage_timings[PipelineStage.THUMBNAIL]
+                    st["completed_at"] = datetime.utcnow().isoformat()
+                    if "started_at" in st:
+                        st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
+                    await sse_manager.emit_workflow_stage_complete(project_id, PipelineStage.THUMBNAIL)
+
+            except Exception as e:
+                logger.warning("[WORKFLOW] Thumbnail stage failed (non-fatal): %s", e)
+                workflow.stage_status[PipelineStage.THUMBNAIL] = PipelineStatus.FAILED
+                workflow.results["thumbnail"] = {"error": str(e)}
+                st = workflow.stage_timings[PipelineStage.THUMBNAIL]
+                st["failed_at"] = datetime.utcnow().isoformat()
+                if "started_at" in st:
+                    st["duration_s"] = round((datetime.utcnow() - datetime.fromisoformat(st["started_at"])).total_seconds(), 1)
+                await sse_manager.emit_workflow_stage_failed(project_id, PipelineStage.THUMBNAIL, str(e))
+                # Non-fatal — pipeline continues as completed
+
         # ═══════════════════════════════════════════════════════════════
         # PIPELINE COMPLETED
         # ═══════════════════════════════════════════════════════════════

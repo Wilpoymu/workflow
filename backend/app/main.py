@@ -7,17 +7,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.core.job_store import init_db
 from app.routers import projects, fragments, channels, images, transcribe, render, workflow
+from app.routers.project_settings import router as project_settings_router
 from app.routers.prompts import router as prompts_router
 from app.routers.shorts import router as shorts_router
 from app.routers.gemini_bridge import router as gemini_bridge_router
 from app.routers.gems import router as gems_router
 from app.routers.timeline import router as timeline_router
+from app.routers.thumbnails import router as thumbnails_router
+from app.routers.short_metadata import router as short_metadata_router
+from app.routers.video_metadata import router as video_metadata_router
+from app.routers.metadata_shorts import router as metadata_shorts_router
 from app.routers.images import save_image
 from app.services import project_service
 from app.services.forge_bridge import bridge
 from app.services.gems_manager import init_gems
 from pydantic import BaseModel
-from app.services.forge_bridge import bridge
 
 
 @asynccontextmanager
@@ -57,6 +61,11 @@ app.include_router(shorts_router)
 app.include_router(gemini_bridge_router)
 app.include_router(gems_router)
 app.include_router(timeline_router)
+app.include_router(thumbnails_router)
+app.include_router(short_metadata_router)
+app.include_router(video_metadata_router)
+app.include_router(metadata_shorts_router)
+app.include_router(project_settings_router)
 
 
 @app.get("/api/setup/status")
