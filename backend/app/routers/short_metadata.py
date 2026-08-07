@@ -25,7 +25,7 @@ async def generate_metadata(project_id: str, body: MetadataRequest):
         raise HTTPException(status_code=400, detail="Platform must be 'both', 'tiktok', or 'youtube'")
 
     try:
-        result = await _generate(text=body.text, platform=body.platform)
+        result = await _generate(text=body.text, platform=body.platform, project_dir=project_dir)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

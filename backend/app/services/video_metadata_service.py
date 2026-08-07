@@ -19,7 +19,7 @@ SYSTEM_PROMPT = """Eres un experto en SEO de YouTube con 10+ años de experienci
 A partir del texto completo del video, genera metadata en el siguiente formato JSON exacto. Sigue CADA regla al pie de la letra.
 
 Reglas generales:
-- Todo el contenido debe estar en español (excepto tags en inglés si aplica para alcance global).
+{language_rule}
 - No uses clickbait engañoso. Debe ser honesto pero irresistible.
 - Los títulos y descripciones deben incluir naturalmente las keywords sin keyword stuffing.
 
@@ -45,7 +45,7 @@ FORMATO JSON REQUERIDO:
   },
   "tags": ["tag1", "tag2", ..., "tag15-20"],
   "hashtags": ["hashtag1", ..., "hashtag8-12"],
-  "category": "string (categoría estándar de YouTube: Educación, Entretenimiento, Ciencia y Tecnología, Música, Deportes, Noticias, Estilo de Vida, Cómo hacer y estilo, etc.)",
+  "category": "string (categoría estándar de YouTube nombrada en el idioma del contenido, ej: Educación, Entretenimiento, Ciencia y Tecnología, Música, Deportes, Noticias, Estilo de Vida, Cómo hacer y estilo, etc.)",
   "thumbnail_text_overlays": [
     {"text": "string (máx 40 chars, 3-4 palabras)", "style": "gran impacto | pregunta | curiosidad | beneficio"},
     {"text": "string", "style": "string"},
@@ -77,7 +77,23 @@ REGLAS ESPECÍFICAS:
 
 RESPONDE ÚNICAMENTE CON EL JSON. Sin markdown, sin explicaciones, sin código fences."""
 
-USER_PROMPT_TEMPLATE = """Genera metadata SEO completa para YouTube a partir del siguiente texto de video:
+
+def _build_system_prompt(language: str) -> str:
+    if language == "auto":
+        rule = (
+            "- Detecta el idioma del texto del video y genera TODA la metadata (títulos, descripción, "
+            "capítulos, tags, hashtags, categoría, keywords, audiencia y end screen) en ese mismo idioma."
+        )
+    else:
+        rule = (
+            f"- Todo el contenido debe estar en el idioma del video: {language}. "
+            "Genera TODA la metadata (títulos, descripción, capítulos, tags, hashtags, categoría, "
+            "keywords, audiencia y end screen) en este idioma."
+        )
+    return SYSTEM_PROMPT.replace("{language_rule}", rule)
+
+
+USER_PROMPT_TEMPLATE = """Genera metadata SEO completa para YouTube a partir del siguiente texto de video. Genera la metadata EN EL IDIOMA {language}.
 
 {text}
 
@@ -135,12 +151,32 @@ def _load_metadata(project_dir: Path) -> dict[str, Any] | None:
 
 def _save_metadata(project_dir: Path, data: dict[str, Any]) -> None:
     path = project_dir / METADATA_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-async def generate_metadata(text: str) -> dict[str, Any]:
+def _detect_language(text: str, project_dir: Path | None = None) -> str:
+    if project_dir:
+        for candidate in (project_dir / "audio" / "script.json", project_dir / "script.json"):
+            if candidate.exists():
+                try:
+                    data = json.loads(candidate.read_text(encoding="utf-8"))
+                    code = data[0].get("language_code") if isinstance(data, list) else data.get("language_code")
+                    if code and isinstance(code, str):
+                        code = code.strip().lower()
+                        if re.fullmatch(r"[a-z]{2,3}", code):
+                            return code
+                except Exception:
+                    pass
+    return "auto"
+
+
+async def generate_metadata(text: str, project_dir: Path | None = None) -> dict[str, Any]:
     if not text or not text.strip():
         raise ValueError("Text is required to generate metadata")
+
+    language = _detect_language(text, project_dir)
+    language_label = language if language != "auto" else "AUTO (detecta el idioma del texto del video)"
 
     profiles = cookie_store.get_authenticated()
     if not profiles:
@@ -153,7 +189,7 @@ async def generate_metadata(text: str) -> dict[str, Any]:
     psid = profile.get("psid", "")
     psidts = profile.get("psidts", "")
 
-    user_prompt = USER_PROMPT_TEMPLATE.format(text=text.strip())
+    user_prompt = USER_PROMPT_TEMPLATE.format(text=text.strip(), language=language_label)
 
     client = GeminiWebClient(psid, psidts)
     last_error: Exception | None = None
@@ -166,7 +202,7 @@ async def generate_metadata(text: str) -> dict[str, Any]:
                 profile.get("profile_label", "unknown"),
             )
 
-            raw = client.chat(user_prompt, system_prompt=SYSTEM_PROMPT)
+            raw = client.chat(user_prompt, system_prompt=_build_system_prompt(language))
             parsed = _parse_metadata_response(raw)
 
             if not parsed:
@@ -203,7 +239,7 @@ async def save_metadata(project_id: str, project_dir: Path, data: dict[str, Any]
 
 
 async def generate_and_save(project_id: str, project_dir: Path, text: str) -> dict[str, Any]:
-    result = await generate_metadata(text)
+    result = await generate_metadata(text, project_dir)
     result = _validate_chapters_with_timestamps(result, project_dir)
     _save_metadata(project_dir, result)
     return result
