@@ -2,94 +2,182 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme Variables ── */
+:root {
+  --bg: #F5F0E8;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #FAF7F2;
+  --bg-hover: #F0E8DB;
+  --border: #E0D8CC;
+  --border-subtle: #EDE7DB;
+  --text: #1A1A1A;
+  --text-secondary: #6B6560;
+  --text-tertiary: #9B9590;
+  --accent: #2A2318;
+  --accent-hover: #3D3225;
+}
+
+html.dark {
+  --bg: #08080f;
+  --bg-card: #0d0d1a;
+  --bg-elevated: #141425;
+  --bg-hover: #1a1a30;
+  --border: #1e1e35;
+  --border-subtle: #151528;
+  --text: #ffffff;
+  --text-secondary: #9ca3af;
+  --text-tertiary: #6b7280;
+  --accent: #2dd4bf;
+  --accent-hover: #5eead4;
+}
+
 @layer base {
   html {
-    @apply bg-surface text-white;
-  }
-
-  body {
-    @apply font-body antialiased;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-sans font-semibold tracking-tight;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    color: var(--text);
   }
 
   ::selection {
+    background-color: rgba(26, 26, 26, 0.15);
+    color: #1A1A1A;
+  }
+
+  html.dark ::selection {
     background-color: rgba(45, 212, 191, 0.25);
     color: #ccfbf1;
   }
 
-  ::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: #1e1e35;
-    border-radius: 3px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: #2a2a45;
-  }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  html.dark ::-webkit-scrollbar-thumb { background: #1e1e35; }
 }
 
 @layer components {
+  /* Nav */
   .nav-link {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-      text-gray-500 hover:text-gray-300 hover:bg-surface-hover
-      transition-all duration-200;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+  }
+  .nav-link:hover {
+    color: var(--text);
+    background-color: var(--bg-hover);
   }
 
   .nav-link-active {
-    @apply text-accent bg-accent/10 shadow-[inset_3px_0_0_#2dd4bf];
+    color: var(--text);
+    background-color: var(--bg-hover);
+    box-shadow: inset 3px 0 0 currentColor;
+  }
+  html.dark .nav-link-active {
+    color: #2dd4bf;
+    background-color: #1a1a30;
+    box-shadow: inset 3px 0 0 #2dd4bf;
   }
 
+  /* Buttons */
   .btn-primary {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg
-      bg-accent text-surface font-semibold text-sm
-      hover:bg-accent/90 active:bg-accent/80
-      transition-all duration-150;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    background-color: var(--accent);
+    color: var(--bg);
+    transition: all 0.15s;
   }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-primary:active { opacity: 0.8; }
 
   .btn-secondary {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg
-      border border-border text-gray-300 font-medium text-sm
-      hover:bg-surface-hover hover:text-white
-      transition-all duration-150;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    transition: all 0.15s;
+  }
+  .btn-secondary:hover {
+    background-color: var(--bg-hover);
+    color: var(--text);
   }
 
+  /* Cards */
   .card {
-    @apply bg-surface-card border border-border rounded-xl p-5
-      transition-all duration-200;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    transition: all 0.2s;
   }
 
-  .card-hover {
-    @apply card hover:border-accent/30 hover:shadow-[0_0_16px_rgba(45,212,191,0.06)];
+  .card-hover { composes: card; }
+  .card-hover:hover { border-color: rgba(0, 0, 0, 0.15); }
+  html.dark .card-hover:hover {
+    border-color: rgba(45, 212, 191, 0.3);
+    box-shadow: 0 0 16px rgba(45, 212, 191, 0.06);
   }
 
+  /* Input */
   .input {
-    @apply w-full px-3 py-2 rounded-lg bg-surface border border-border
-      text-white placeholder-gray-600 font-body text-sm
-      focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20
-      transition-all duration-150;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    transition: all 0.15s;
+    outline: none;
+  }
+  .input::placeholder { color: var(--text-tertiary); }
+  .input:focus {
+    border-color: rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  }
+  html.dark .input:focus {
+    border-color: rgba(45, 212, 191, 0.5);
+    box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.2);
   }
 }
 
 @layer utilities {
   .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-accent via-accent-secondary to-studio-indigo;
+    background: linear-gradient(to right, var(--text), var(--text-secondary), var(--text-tertiary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  html.dark .text-gradient {
+    background: linear-gradient(to right, #2dd4bf, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
-  .glow-teal {
-    box-shadow: 0 0 20px rgba(45, 212, 191, 0.15);
-  }
-
-  .glow-teal-sm {
-    box-shadow: 0 0 8px rgba(45, 212, 191, 0.1);
-  }
+  .glow-teal { box-shadow: 0 0 20px rgba(45, 212, 191, 0.15); }
+  .glow-teal-sm { box-shadow: 0 0 8px rgba(45, 212, 191, 0.1); }
 }

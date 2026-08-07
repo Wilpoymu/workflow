@@ -240,7 +240,7 @@ export default function Dashboard() {
 
       {/* Pipeline */}
       <section className="mb-10">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 font-sans">
+        <h2 className="text-xs font-semibold text-foreground-tertiary dark:text-gray-500 uppercase tracking-wider mb-4 font-sans">
           Pipeline
         </h2>
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -255,8 +255,8 @@ export default function Dashboard() {
                   <Card className="flex items-center gap-4 py-3 px-4 card-hover">
                     <Icon className="w-5 h-5 text-accent shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-white">{step.label}</p>
-                      <p className="text-xs text-gray-600 font-body">{step.desc}</p>
+                      <p className="text-sm font-semibold text-foreground dark:text-white">{step.label}</p>
+                      <p className="text-xs text-foreground-tertiary dark:text-gray-600 font-body">{step.desc}</p>
                     </div>
                   </Card>
                 </button>
@@ -271,7 +271,7 @@ export default function Dashboard() {
 
       {/* Projects */}
       <section>
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 font-sans">
+        <h2 className="text-xs font-semibold text-foreground-tertiary dark:text-gray-500 uppercase tracking-wider mb-4 font-sans">
           Projects
         </h2>
 
@@ -297,10 +297,10 @@ export default function Dashboard() {
                     onClick={() => goToProject(p.id, "editor")}
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <h3 className="font-semibold text-white font-sans">{p.name}</h3>
+                      <h3 className="font-semibold text-foreground dark:text-white font-sans">{p.name}</h3>
                       <Badge variant={s.variant}>{s.label}</Badge>
                     </div>
-                    <p className="text-xs text-gray-600 font-body mb-4">
+                    <p className="text-xs text-foreground-tertiary dark:text-gray-600 font-body mb-4">
                       Created {new Date(p.created_at).toLocaleDateString()}
                     </p>
                   </div>

@@ -4,6 +4,7 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       fontFamily: {
@@ -13,19 +14,23 @@ export default {
       },
       colors: {
         surface: {
-          DEFAULT: '#08080f',
-          card: '#0d0d1a',
-          elevated: '#141425',
-          hover: '#1a1a30',
+          DEFAULT: 'var(--bg)',
+          card: 'var(--bg-card)',
+          elevated: 'var(--bg-elevated)',
+          hover: 'var(--bg-hover)',
         },
         border: {
-          DEFAULT: '#1e1e35',
-          subtle: '#151528',
+          DEFAULT: 'var(--border)',
+          subtle: 'var(--border-subtle)',
+        },
+        foreground: {
+          DEFAULT: 'var(--text)',
+          secondary: 'var(--text-secondary)',
+          tertiary: 'var(--text-tertiary)',
         },
         accent: {
-          DEFAULT: '#2dd4bf',
-          secondary: '#38bdf8',
-          muted: '#5eead4',
+          DEFAULT: 'var(--accent)',
+          hover: 'var(--accent-hover)',
         },
         studio: {
           teal: '#2dd4bf',

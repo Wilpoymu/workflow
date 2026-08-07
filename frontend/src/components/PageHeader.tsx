@@ -17,15 +17,15 @@ export default function PageHeader({ title, description, actions, backTo }: Page
         {backTo && (
           <button
             onClick={() => navigate(backTo)}
-            className="text-gray-600 hover:text-gray-300 transition-colors p-1 -ml-1"
+            className="text-foreground-tertiary hover:text-foreground dark:text-gray-600 dark:hover:text-gray-300 transition-colors p-1 -ml-1"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
         )}
         <div>
-          <h1 className="text-2xl font-bold text-white">{title}</h1>
+          <h1 className="text-2xl font-bold text-foreground dark:text-white">{title}</h1>
           {description && (
-            <p className="mt-1 text-sm text-gray-500 font-body">{description}</p>
+            <p className="mt-1 text-sm text-foreground-tertiary dark:text-gray-500 font-body">{description}</p>
           )}
         </div>
       </div>
