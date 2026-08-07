@@ -11,9 +11,14 @@ backend/.coverage
 backend/htmlcov/
 backend/workflow.db
 backend/jobs.sqlite
+*.db-shm
+*.db-wal
+*.sqlite-shm
+*.sqlite-wal
 workflow.db
 
 # ── Node / Frontend ────────────────────────────────────
+node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
@@ -55,6 +60,9 @@ skills-lock.json
 # start.bat — tracked, service launcher
 .playwright-mcp/
 .atl/
+# root package files — local Playwright MCP tooling only, not app code
+/package.json
+/package-lock.json
 
 # ── Docs (third-party, not source) ─────────────────────
 docs/
