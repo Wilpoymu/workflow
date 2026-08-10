@@ -23,13 +23,29 @@ Para CADA plataforma, debes devolver:
 - **hashtags**: Lista de 8-12 hashtags optimizados para descubrimiento (incluye 2-3 de tendencia general, 2-3 del nicho, 2-3 específicos del contenido).
 
 Reglas:
+{language_rule}
 1. El título debe empezar con un hook potente: pregunta, curiosidad, beneficio directo o controversia suave.
 2. Los hashtags deben combinar volumen alto (ej: #motivacion) con especificidad de nicho (ej: #limpiezaenergetica).
 3. La descripción debe incluir naturalmente 3-4 keywords sin sobre-optimizar.
 4. Para YouTube Shorts, sugiere una categoría apropiada del listado estándar de YouTube.
 5. Para TikTok, sugiere un efecto de sonido o tipo de audio trending si aplica."""
 
-USER_PROMPT_TEMPLATE = """Genera metadata para {platform_desc} a partir de este texto:
+
+def _build_system_prompt(language: str) -> str:
+    if language == "auto":
+        rule = (
+            "- TODO el contenido generado (title, description, tags, hashtags y category) debe estar "
+            "en el MISMO idioma del texto del video. Detecta ese idioma a partir del texto y úsalo en TODAS las plataformas."
+        )
+    else:
+        rule = (
+            f"- TODO el contenido generado (title, description, tags, hashtags y category) debe estar "
+            f"en el idioma del video: {language}."
+        )
+    return SYSTEM_PROMPT.replace("{language_rule}", rule)
+
+
+USER_PROMPT_TEMPLATE = """Genera metadata para {platform_desc} a partir de este texto. Genera TODA la metadata EN EL IDIOMA {language} (title, description, tags, hashtags y category):
 
 {text}
 
@@ -112,9 +128,28 @@ def _save_all(project_dir: Path, data: dict[str, Any]) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-async def generate_shorts_metadata(text: str, platform: str = "both") -> dict[str, Any]:
+def _detect_language(text: str, project_dir: Path | None = None) -> str:
+    if project_dir:
+        for candidate in (project_dir / "audio" / "script.json", project_dir / "script.json"):
+            if candidate.exists():
+                try:
+                    data = json.loads(candidate.read_text(encoding="utf-8"))
+                    code = data[0].get("language_code") if isinstance(data, list) else data.get("language_code")
+                    if code and isinstance(code, str):
+                        code = code.strip().lower()
+                        if re.fullmatch(r"[a-z]{2,3}", code):
+                            return code
+                except Exception:
+                    pass
+    return "auto"
+
+
+async def generate_shorts_metadata(text: str, platform: str = "both", project_dir: Path | None = None) -> dict[str, Any]:
     if not text or not text.strip():
         raise ValueError("Text is required to generate metadata")
+
+    language = _detect_language(text, project_dir)
+    language_label = language if language != "auto" else "AUTO (detecta el idioma del texto del video)"
 
     profiles = cookie_store.get_authenticated()
     if not profiles:
@@ -128,14 +163,14 @@ async def generate_shorts_metadata(text: str, platform: str = "both") -> dict[st
     psidts = profile.get("psidts", "")
 
     platform_desc = "ambas plataformas" if platform == "both" else f"la plataforma {platform}"
-    user_prompt = USER_PROMPT_TEMPLATE.format(text=text.strip(), platform_desc=platform_desc)
+    user_prompt = USER_PROMPT_TEMPLATE.format(text=text.strip(), platform_desc=platform_desc, language=language_label)
 
     client = GeminiWebClient(psid, psidts)
     last_error: Exception | None = None
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            raw = client.chat(user_prompt, system_prompt=SYSTEM_PROMPT)
+            raw = client.chat(user_prompt, system_prompt=_build_system_prompt(language))
             parsed = _parse_metadata_response(raw)
             if not parsed:
                 raise RuntimeError("Failed to parse Gemini Web response as metadata JSON")
@@ -150,7 +185,7 @@ async def generate_shorts_metadata(text: str, platform: str = "both") -> dict[st
 
 
 async def generate_and_save(project_dir: Path, text: str, index: str, platform: str = "both") -> dict[str, Any]:
-    result = await generate_shorts_metadata(text, platform)
+    result = await generate_shorts_metadata(text, platform, project_dir)
     all_data = _load_all(project_dir)
     result["index"] = index
     all_data[index] = result

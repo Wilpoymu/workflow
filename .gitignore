@@ -10,12 +10,16 @@ backend/build/
 backend/.coverage
 backend/htmlcov/
 backend/workflow.db
+backend/jobs.sqlite
+workflow.db
 
 # ── Node / Frontend ────────────────────────────────────
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 frontend/*.tsbuildinfo
+frontend/public/dashboard-*.html
+frontend/public/redesign-*.html
 
 # ── Extension ──────────────────────────────────────────
 extension/.output/
@@ -50,7 +54,14 @@ MIGRATION_PLAN.md
 skills-lock.json
 # start.bat — tracked, service launcher
 .playwright-mcp/
+.atl/
 
 # ── Docs (third-party, not source) ─────────────────────
 docs/
+
+# ── Scripts (local utilities) ───────────────────────────
+scripts/
+
+# ── SDD / OpenSpec artifacts ────────────────────────────
+openspec/
 

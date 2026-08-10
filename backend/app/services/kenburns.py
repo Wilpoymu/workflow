@@ -12,19 +12,27 @@ from io import BytesIO
 from pathlib import Path
 from typing import Callable, Optional
 
-# Ensure CUDA_PATH is set for CuPy (silences harmless warning)
-if os.name == "nt" and "CUDA_PATH" not in os.environ:
-    try:
-        import nvidia.cuda_runtime
-        pkg_dir = nvidia.cuda_runtime.__path__[0]
-        os.environ["CUDA_PATH"] = pkg_dir
-    except Exception:
-        pass
-
-import cupy as cp
 import numpy as np
-from cupyx.scipy.ndimage import affine_transform
 from PIL import Image
+
+# GPU support (optional - falls back to CPU if unavailable)
+try:
+    # Ensure CUDA_PATH is set for CuPy (silences harmless warning)
+    if os.name == "nt" and "CUDA_PATH" not in os.environ:
+        try:
+            import nvidia.cuda_runtime
+            pkg_dir = nvidia.cuda_runtime.__path__[0]
+            os.environ["CUDA_PATH"] = pkg_dir
+        except Exception:
+            pass
+
+    import cupy as cp
+    from cupyx.scipy.ndimage import affine_transform
+    HAS_GPU = True
+except ImportError:
+    cp = None
+    from scipy.ndimage import affine_transform
+    HAS_GPU = False
 
 from app.config import settings
 
@@ -385,7 +393,7 @@ def _detect_hw_encoder() -> tuple[str, list[str]]:
     return 'libx264', ['-c:v', 'libx264', '-preset', 'veryfast']
 
 
-# ── GPU Ken Burns helpers ────────────────────────────────────
+# ── GPU/CPU Ken Burns helpers ────────────────────────────────────
 
 
 def _smoothstep(t: float) -> float:
@@ -403,7 +411,7 @@ def _render_clip_gpu(
     clip_encoder: list[str],
     output_path: str,
 ) -> bool:
-    """Render a single Ken Burns clip on GPU.
+    """Render a single Ken Burns clip on GPU (or CPU fallback).
 
     Replicates the original canvas+margins approach:
       - canvas is output enlarged by margins (intensity)
@@ -423,9 +431,12 @@ def _render_clip_gpu(
     # Scale factor to COVER the canvas with the image
     img_scale = max(canvas_w / in_w, canvas_h / in_h)
 
-    # Upload base image to GPU (float32 RGB [0,1])
+    # Upload base image to GPU/CPU (float32 RGB [0,1])
     host = np.array(img, dtype=np.float32) / 255.0
-    gpu_img = cp.asarray(host)
+    if HAS_GPU:
+        base_img = cp.asarray(host)
+    else:
+        base_img = host
 
     # Start FFmpeg subprocess (rawvideo → hw encoder)
     cmd = [
@@ -444,7 +455,11 @@ def _render_clip_gpu(
     ])
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, creationflags=_SUBPROCESS_FLAGS)
 
-    frame_gpu = cp.empty((out_h, out_w, 3), dtype=cp.float32)
+    if HAS_GPU:
+        frame_buf = cp.empty((out_h, out_w, 3), dtype=cp.float32)
+    else:
+        frame_buf = np.empty((out_h, out_w, 3), dtype=np.float32)
+
     denom = max(n_frames - 1, 1)
 
     for fi in range(n_frames):
@@ -486,13 +501,18 @@ def _render_clip_gpu(
         s = 1.0 / (z * img_scale)
         tx = in_w / 2.0 + px / img_scale - vw / (2.0 * img_scale)
         ty = in_h / 2.0 + py / img_scale - vh / (2.0 * img_scale)
-        M = cp.array([[s, 0, ty], [0, s, tx]], dtype=cp.float64)
 
-        for c in range(3):
-            frame_gpu[:, :, c] = affine_transform(gpu_img[:, :, c], M, output_shape=(out_h, out_w), order=1)
+        if HAS_GPU:
+            M = cp.array([[s, 0, ty], [0, s, tx]], dtype=cp.float64)
+            for c in range(3):
+                frame_buf[:, :, c] = affine_transform(base_img[:, :, c], M, output_shape=(out_h, out_w), order=1)
+            frame_host = cp.asnumpy(cp.clip(frame_buf * 255.0, 0, 255).astype(cp.uint8))
+        else:
+            M = np.array([[s, 0, ty], [0, s, tx]], dtype=np.float64)
+            for c in range(3):
+                frame_buf[:, :, c] = affine_transform(base_img[:, :, c], M, output_shape=(out_h, out_w), order=1)
+            frame_host = np.clip(frame_buf * 255.0, 0, 255).astype(np.uint8)
 
-        # Download back, convert to uint8 RGB, write to pipe
-        frame_host = cp.asnumpy(cp.clip(frame_gpu * 255.0, 0, 255).astype(cp.uint8))
         proc.stdin.write(frame_host.tobytes())
 
     proc.stdin.close()
