@@ -383,7 +383,7 @@ export default function Dashboard() {
                   className="flex items-center gap-3 p-3 rounded-lg bg-surface-card border border-border"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{o.title}</p>
+                    <p className="text-sm font-medium text-foreground dark:text-white truncate">{o.title}</p>
                     <div className="flex items-center gap-3 mt-1">
                       <span className="text-[11px] text-gray-600 font-mono">{o.id}</span>
                       <span className={`text-[11px] ${o.has_video ? "text-green-400" : "text-gray-700"}`}>
@@ -467,7 +467,7 @@ export default function Dashboard() {
         title="Delete Channel"
       >
         <p className="text-sm text-gray-300 mb-2">
-          Are you sure you want to delete <strong className="text-white">{channels.find(c => c.id === showDeleteChannel)?.name}</strong>?
+          Are you sure you want to delete <strong className="text-foreground dark:text-white">{channels.find(c => c.id === showDeleteChannel)?.name}</strong>?
         </p>
         <p className="text-xs text-gray-600 mb-6">
           This only removes the channel from the database. Project folders on disk will not be affected.

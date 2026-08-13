@@ -222,7 +222,7 @@ export default function Render() {
         <div className="lg:col-span-2 space-y-6">
           {/* Image Selection */}
           <Card>
-            <h3 className="text-sm font-semibold text-white mb-4 font-sans">
+            <h3 className="text-sm font-semibold text-foreground dark:text-white mb-4 font-sans">
               Image Selection
             </h3>
             <div className="grid grid-cols-2 gap-4">
@@ -260,7 +260,7 @@ export default function Render() {
 
           {/* Video Settings */}
           <Card>
-            <h3 className="text-sm font-semibold text-white mb-4 font-sans">
+            <h3 className="text-sm font-semibold text-foreground dark:text-white mb-4 font-sans">
               Video Settings
             </h3>
             <div className="grid grid-cols-2 gap-4">
@@ -332,7 +332,7 @@ export default function Render() {
 
           {/* Progress */}
           <Card>
-            <h3 className="text-sm font-semibold text-white mb-4 font-sans">Progress</h3>
+            <h3 className="text-sm font-semibold text-foreground dark:text-white mb-4 font-sans">Progress</h3>
             <ProgressBar progress={progress} />
             <div className="mt-4 flex items-center gap-3 text-xs text-gray-600 font-mono">
               <span>Status: {status}</span>
@@ -370,7 +370,7 @@ export default function Render() {
                 <Video className="w-12 h-12 text-gray-800" />
               </div>
               <div className="p-4">
-                <h3 className="text-sm font-semibold text-white font-sans">Preview</h3>
+                <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">Preview</h3>
                 <p className="text-xs text-gray-600 font-body mt-1">
                   Render output will appear here
                 </p>

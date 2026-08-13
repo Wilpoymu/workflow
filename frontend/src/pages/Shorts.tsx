@@ -367,7 +367,7 @@ export default function Shorts() {
           {/* Segments Found */}
           <Card>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-white font-sans">
+              <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">
                 Segments Found
               </h3>
               {videoName && (
@@ -529,7 +529,7 @@ export default function Shorts() {
           {/* Progress (during rendering) */}
           {(status === "rendering" || status === "done" || status === "failed") && renderResults.length > 0 && (
             <Card>
-              <h3 className="text-sm font-semibold text-white mb-4 font-sans">Progress</h3>
+              <h3 className="text-sm font-semibold text-foreground dark:text-white mb-4 font-sans">Progress</h3>
               <ProgressBar progress={progress} />
               {progressMessage && (
                 <p className="text-xs text-gray-500 mt-2 font-mono">{progressMessage}</p>
@@ -576,7 +576,7 @@ export default function Shorts() {
         <div className="space-y-4">
           {/* Settings */}
           <Card>
-            <h3 className="text-sm font-semibold text-white mb-4 font-sans">Settings</h3>
+            <h3 className="text-sm font-semibold text-foreground dark:text-white mb-4 font-sans">Settings</h3>
 
             <div className="space-y-4">
               {/* Burn Subtitles toggle */}
@@ -642,7 +642,7 @@ export default function Shorts() {
 
           {/* Downloads */}
           <Card>
-            <h3 className="text-sm font-semibold text-white mb-4 font-sans">Downloads</h3>
+            <h3 className="text-sm font-semibold text-foreground dark:text-white mb-4 font-sans">Downloads</h3>
 
             {downloads.length === 0 ? (
               <p className="text-xs text-gray-600 text-center py-6 font-body">
