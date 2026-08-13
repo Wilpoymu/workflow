@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   Plus, FolderOpen, Play, ArrowRight, LayoutGrid,
-  Image, Mic, Video, Zap, FileEdit, Search, Trash2,
+  Image, Mic, Video, Zap, FileEdit, Search, Trash2, FlaskConical,
 } from "lucide-react"
 import PageHeader from "../components/PageHeader"
 import Card from "../components/Card"
@@ -16,16 +16,16 @@ import { useActiveProjectContext } from "../App"
 import type { Channel, ProjectRow } from "../types"
 
 const pipelineSteps = [
-  { label: "Editor", desc: "Split script & prompts", icon: FileEdit, page: "editor" },
-  { label: "Images", desc: "Generate scene images", icon: Image, page: "images" },
-  { label: "Transcribe", desc: "Whisper transcription", icon: Mic, page: "transcribe" },
-  { label: "Render", desc: "Ken Burns output", icon: Video, page: "render" },
+  { label: "Editor", desc: "Divide guion y prompts", icon: FileEdit, page: "editor" },
+  { label: "Images", desc: "Genera imágenes de escena", icon: Image, page: "images" },
+  { label: "Transcribe", desc: "Transcripción con Whisper", icon: Mic, page: "transcribe" },
+  { label: "Render", desc: "Render con Ken Burns", icon: Video, page: "render" },
 ]
 
 const statusMap: Record<string, { variant: "success" | "warning" | "info"; label: string }> = {
-  active: { variant: "success", label: "Active" },
-  editing: { variant: "warning", label: "Editing" },
-  done: { variant: "info", label: "Done" },
+  active: { variant: "success", label: "Activo" },
+  editing: { variant: "warning", label: "Editando" },
+  done: { variant: "info", label: "Completado" },
 }
 
 export default function Dashboard() {
@@ -177,7 +177,7 @@ export default function Dashboard() {
   }
 
   if (loading) {
-    return <p className="text-sm text-gray-600 font-body mt-8">Loading workspace...</p>
+    return <p className="text-sm text-gray-600 font-body mt-8">Cargando espacio de trabajo...</p>
   }
 
   if (setup && !setup.has_channels) {
@@ -186,11 +186,72 @@ export default function Dashboard() {
 
   const activeChannelObj = channels.find((c) => c.id === activeChannel)
 
+  const isTestProject = (name: string) => /^(qa|test)[-_]/i.test(name || "")
+  const prodProjects = projects.filter((p) => !isTestProject(p.name))
+  const testProjects = projects.filter((p) => isTestProject(p.name))
+
+  const renderProjectCard = (p: ProjectRow, isTest: boolean) => {
+    const s = statusMap[p.status] ?? { variant: "default", label: p.status }
+    return (
+      <Card key={p.id} className={`animate-fade-in card-hover${isTest ? " opacity-75" : ""}`}>
+        <div
+          className="cursor-pointer"
+          onClick={() => goToProject(p.id, "editor")}
+        >
+          <div className="flex items-start justify-between mb-3">
+            <h3
+              className="flex-1 min-w-0 font-semibold text-foreground dark:text-white font-sans truncate"
+              title={p.name}
+            >
+              {p.name}
+            </h3>
+            {isTest ? <Badge variant="warning">Test</Badge> : <Badge variant={s.variant}>{s.label}</Badge>}
+          </div>
+          <p className="text-xs text-foreground-tertiary dark:text-gray-600 font-body mb-4">
+            Creado {new Date(p.created_at).toLocaleDateString()}
+          </p>
+        </div>
+        <div className="pt-3 border-t border-border flex items-center gap-1">
+          <button
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-gray-500 hover:text-accent hover:bg-accent/5 transition-all"
+            onClick={() => goToProject(p.id, "editor")}
+          >
+            <Play className="w-3 h-3" /> Editor
+          </button>
+          <button
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-gray-500 hover:text-accent hover:bg-accent/5 transition-all"
+            onClick={() => goToProject(p.id, "images")}
+          >
+            <Image className="w-3 h-3" /> Images
+          </button>
+          <button
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-gray-500 hover:text-accent hover:bg-accent/5 transition-all"
+            onClick={() => goToProject(p.id, "transcribe")}
+          >
+            <Mic className="w-3 h-3" /> Audio
+          </button>
+          <button
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-gray-500 hover:text-accent hover:bg-accent/5 transition-all"
+            onClick={() => goToProject(p.id, "render")}
+          >
+            <Video className="w-3 h-3" /> Render
+          </button>
+          <button
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-semibold text-accent bg-accent/10 hover:bg-accent/20 transition-all"
+            onClick={() => goToProject(p.id, "workflow")}
+          >
+            <Zap className="w-3 h-3" /> Run
+          </button>
+        </div>
+      </Card>
+    )
+  }
+
   return (
     <div>
       <PageHeader
         title={activeChannelObj?.name ?? "Dashboard"}
-        description="Manage your video production projects"
+        description="Gestiona tus proyectos de producción de video"
         actions={
           <div className="flex items-center gap-2">
             <button className="btn-secondary text-xs" onClick={() => {
@@ -198,11 +259,11 @@ export default function Dashboard() {
               setShowCreateChannel(true)
             }}>
               <Plus className="w-3.5 h-3.5" />
-              Channel
+              Canal
             </button>
             <button className="btn-primary" onClick={() => setShowCreateProject(true)}>
               <Plus className="w-4 h-4" />
-              New Project
+              Nuevo proyecto
             </button>
           </div>
         }
@@ -230,7 +291,7 @@ export default function Dashboard() {
                   ? "bg-accent/10 text-gray-600 hover:text-red-400"
                   : "text-gray-700 hover:text-red-400 hover:bg-surface-hover"
               }`}
-              title="Delete channel"
+              title="Eliminar canal"
             >
               <Trash2 className="w-3 h-3" />
             </button>
@@ -272,74 +333,40 @@ export default function Dashboard() {
       {/* Projects */}
       <section>
         <h2 className="text-xs font-semibold text-foreground-tertiary dark:text-gray-500 uppercase tracking-wider mb-4 font-sans">
-          Projects
+          Proyectos
         </h2>
 
         {projects.length === 0 ? (
           <EmptyState
             icon={<FolderOpen />}
-            title="No projects in this channel"
-            description="Create your first video project"
+            title="No hay proyectos en este canal"
+            description="Crea tu primer proyecto de video"
             action={
               <button className="btn-primary" onClick={() => setShowCreateProject(true)}>
-                <Plus className="w-4 h-4" />New Project
+                <Plus className="w-4 h-4" />Nuevo proyecto
               </button>
             }
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {projects.map((p) => {
-              const s = statusMap[p.status] ?? { variant: "default", label: p.status }
-              return (
-                <Card key={p.id} className="animate-fade-in card-hover">
-                  <div
-                    className="cursor-pointer"
-                    onClick={() => goToProject(p.id, "editor")}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="font-semibold text-foreground dark:text-white font-sans">{p.name}</h3>
-                      <Badge variant={s.variant}>{s.label}</Badge>
-                    </div>
-                    <p className="text-xs text-foreground-tertiary dark:text-gray-600 font-body mb-4">
-                      Created {new Date(p.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="pt-3 border-t border-border flex items-center gap-1">
-                    <button
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-gray-500 hover:text-accent hover:bg-accent/5 transition-all"
-                      onClick={() => goToProject(p.id, "editor")}
-                    >
-                      <Play className="w-3 h-3" /> Editor
-                    </button>
-                    <button
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-gray-500 hover:text-accent hover:bg-accent/5 transition-all"
-                      onClick={() => goToProject(p.id, "images")}
-                    >
-                      <Image className="w-3 h-3" /> Images
-                    </button>
-                    <button
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-gray-500 hover:text-accent hover:bg-accent/5 transition-all"
-                      onClick={() => goToProject(p.id, "transcribe")}
-                    >
-                      <Mic className="w-3 h-3" /> Audio
-                    </button>
-                    <button
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-gray-500 hover:text-accent hover:bg-accent/5 transition-all"
-                      onClick={() => goToProject(p.id, "render")}
-                    >
-                      <Video className="w-3 h-3" /> Render
-                    </button>
-                    <button
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-gray-500 hover:text-accent hover:bg-accent/5 transition-all"
-                      onClick={() => goToProject(p.id, "workflow")}
-                    >
-                      <Zap className="w-3 h-3" /> Run
-                    </button>
-                  </div>
-                </Card>
-              )
-            })}
-          </div>
+          <>
+            {prodProjects.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {prodProjects.map((p) => renderProjectCard(p, false))}
+              </div>
+            )}
+            {testProjects.length > 0 && (
+              <details className="group mt-4" open>
+                <summary className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 font-sans hover:text-gray-400 transition-colors">
+                  <FlaskConical className="w-3.5 h-3.5" />
+                  Proyectos de prueba
+                  <span className="text-gray-600 font-mono normal-case">({testProjects.length})</span>
+                </summary>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {testProjects.map((p) => renderProjectCard(p, true))}
+                </div>
+              </details>
+            )}
+          </>
         )}
       </section>
 
@@ -348,30 +375,30 @@ export default function Dashboard() {
         <details className="group">
           <summary className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 font-sans hover:text-gray-400 transition-colors">
             <Search className="w-3.5 h-3.5" />
-            Unindexed Projects
+            Proyectos sin indexar
             {orphans !== null && (
-              <span className="text-gray-600 font-mono normal-case">({orphans.length} found)</span>
+              <span className="text-gray-600 font-mono normal-case">({orphans.length} encontrados)</span>
             )}
           </summary>
 
           {orphans === null && !scanning && (
             <div className="flex items-center gap-3 p-4 rounded-lg bg-surface-card border border-border">
               <p className="text-xs text-gray-500 font-body flex-1">
-                There are project folders on disk that aren't in the database. Scan to find and import them.
+                Hay carpetas de proyectos en disco que no están en la base de datos. Escanea para encontrarlas e importarlas.
               </p>
               <button className="btn-secondary text-xs" onClick={handleScanOrphans}>
-                <Search className="w-3 h-3" /> Scan
+                <Search className="w-3 h-3" /> Escanear
               </button>
             </div>
           )}
 
           {scanning && (
-            <div className="text-center py-6 text-xs text-gray-500">Scanning project folders...</div>
+            <div className="text-center py-6 text-xs text-gray-500">Escaneando carpetas de proyectos...</div>
           )}
 
           {orphans !== null && orphans.length === 0 && !scanning && (
             <div className="text-center py-6 text-xs text-gray-600">
-              No orphaned projects found. All projects are indexed.
+              No hay proyectos huérfanos. Todos están indexados.
             </div>
           )}
 
@@ -402,12 +429,12 @@ export default function Dashboard() {
                     onClick={() => handleImportOrphan(o.id, o.channel_id)}
                     disabled={importing.has(o.id)}
                   >
-                    {importing.has(o.id) ? "Importing..." : "Import"}
+                    {importing.has(o.id) ? "Importando..." : "Importar"}
                   </button>
                 </div>
               ))}
               <button className="btn-secondary text-xs mt-2" onClick={handleScanOrphans}>
-                <Search className="w-3 h-3" /> Re-scan
+                <Search className="w-3 h-3" /> Re-escanear
               </button>
             </div>
           )}
@@ -415,10 +442,10 @@ export default function Dashboard() {
       </section>
 
       {/* Create Project Modal */}
-      <Modal open={showCreateProject} onClose={() => setShowCreateProject(false)} title="New Project">
+      <Modal open={showCreateProject} onClose={() => setShowCreateProject(false)} title="Nuevo proyecto">
         <div className="flex flex-col gap-4">
           <div>
-            <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">Channel</label>
+            <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">Canal</label>
             <select className="input" value={activeChannel ?? ""} disabled={channels.length <= 1}>
               {channels.map((ch) => (
                 <option key={ch.id} value={ch.id}>{ch.name}</option>
@@ -426,10 +453,10 @@ export default function Dashboard() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">Project Topic *</label>
+            <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">Tema del proyecto *</label>
             <input
               className="input"
-              placeholder="e.g. Libra, Aries, Meditacion"
+              placeholder="p. ej. Libra, Aries, Meditación"
               value={projectTopic}
               onChange={(e) => setProjectTopic(e.target.value)}
               autoFocus
@@ -437,24 +464,24 @@ export default function Dashboard() {
             />
             {newProjectName && (
               <p className="text-xs text-gray-600 mt-1.5 font-mono">
-                Will create: <span className="text-accent">{newProjectName}</span>
+                Se creará: <span className="text-accent">{newProjectName}</span>
               </p>
             )}
           </div>
           <div>
-            <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">Display Title (optional)</label>
+            <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">Título visible (opcional)</label>
             <input
               className="input"
-              placeholder="e.g. Horóscopo Libra Junio 2026"
+              placeholder="p. ej. Horóscopo Libra Junio 2026"
               value={newProjectTitle}
               onChange={(e) => setNewProjectTitle(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleCreateProject() }}
             />
           </div>
           <div className="flex justify-end gap-2 mt-2">
-            <button className="btn-secondary" onClick={() => setShowCreateProject(false)}>Cancel</button>
+            <button className="btn-secondary" onClick={() => setShowCreateProject(false)}>Cancelar</button>
             <button className="btn-primary" onClick={handleCreateProject} disabled={!projectTopic.trim()}>
-              <Plus className="w-4 h-4" />Create
+              <Plus className="w-4 h-4" />Crear
             </button>
           </div>
         </div>
@@ -464,33 +491,33 @@ export default function Dashboard() {
       <Modal
         open={showDeleteChannel !== null}
         onClose={() => setShowDeleteChannel(null)}
-        title="Delete Channel"
+        title="Eliminar canal"
       >
         <p className="text-sm text-gray-300 mb-2">
-          Are you sure you want to delete <strong className="text-foreground dark:text-white">{channels.find(c => c.id === showDeleteChannel)?.name}</strong>?
+          ¿Seguro que quieres eliminar <strong className="text-foreground dark:text-white">{channels.find(c => c.id === showDeleteChannel)?.name}</strong>?
         </p>
         <p className="text-xs text-gray-600 mb-6">
-          This only removes the channel from the database. Project folders on disk will not be affected.
+          Esto solo elimina el canal de la base de datos. Las carpetas de proyectos en disco no se verán afectadas.
         </p>
         <div className="flex justify-end gap-2">
-          <button className="btn-secondary" onClick={() => setShowDeleteChannel(null)}>Cancel</button>
+          <button className="btn-secondary" onClick={() => setShowDeleteChannel(null)}>Cancelar</button>
           <button
             className="btn-primary !bg-red-600 !border-red-600 hover:!bg-red-700"
             onClick={() => showDeleteChannel && handleDeleteChannel(showDeleteChannel)}
           >
-            <Trash2 className="w-4 h-4" /> Delete
+            <Trash2 className="w-4 h-4" /> Eliminar
           </button>
         </div>
       </Modal>
 
       {/* Create Channel Modal */}
-      <Modal open={showCreateChannel} onClose={() => setShowCreateChannel(false)} title="New Channel">
+      <Modal open={showCreateChannel} onClose={() => setShowCreateChannel(false)} title="Nuevo canal">
         <div className="flex flex-col gap-4">
           <div>
-            <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">Channel Name *</label>
+            <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">Nombre del canal *</label>
             <input
               className="input"
-              placeholder="e.g. My YouTube Channel"
+              placeholder="p. ej. Mi canal de YouTube"
               value={newChannelName}
               onChange={(e) => setNewChannelName(e.target.value)}
               autoFocus
@@ -498,7 +525,7 @@ export default function Dashboard() {
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">Projects Folder *</label>
+            <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">Carpeta de proyectos *</label>
             <input
               className="input font-mono text-xs"
               placeholder="e.g. C:\Users\...\Youtube\canal"
@@ -508,9 +535,9 @@ export default function Dashboard() {
             />
           </div>
           <div className="flex justify-end gap-2 mt-2">
-            <button className="btn-secondary" onClick={() => setShowCreateChannel(false)}>Cancel</button>
+            <button className="btn-secondary" onClick={() => setShowCreateChannel(false)}>Cancelar</button>
             <button className="btn-primary" onClick={handleCreateChannel} disabled={!newChannelName.trim() || !newChannelPath.trim()}>
-              <Plus className="w-4 h-4" />Create
+              <Plus className="w-4 h-4" />Crear
             </button>
           </div>
         </div>
