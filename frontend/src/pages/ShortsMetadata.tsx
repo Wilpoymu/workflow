@@ -96,7 +96,7 @@ function PlatformCard({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {icon}
-          <h3 className="text-sm font-semibold text-white font-sans">{label}</h3>
+          <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">{label}</h3>
         </div>
         <CopyButton text={fullDescription} label={`${label} metadata`} />
       </div>
@@ -106,7 +106,7 @@ function PlatformCard({
           <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Title</label>
           <CopyButton text={data.title} label="Title" />
         </div>
-        <p className="text-sm text-white font-body bg-surface-hover rounded-lg px-3 py-2 border border-border">
+        <p className="text-sm text-foreground dark:text-white font-body bg-surface-hover rounded-lg px-3 py-2 border border-border">
           {data.title}
         </p>
         <p className="text-[11px] text-gray-600 mt-1 font-mono">{data.title.length} chars</p>
@@ -265,7 +265,7 @@ export default function ShortsMetadata() {
         {/* Left — Input */}
         <div className="lg:col-span-1 space-y-4">
           <Card>
-            <h3 className="text-sm font-semibold text-white mb-4 font-sans">Content</h3>
+            <h3 className="text-sm font-semibold text-foreground dark:text-white mb-4 font-sans">Content</h3>
 
             <div className="space-y-4">
               <div>
