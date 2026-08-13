@@ -188,7 +188,7 @@ export default function Thumbnails() {
       <Card className="mb-6">
         <div className="flex items-center gap-2 mb-3">
           <ImageIcon className="w-4 h-4 text-accent" />
-          <h3 className="text-sm font-semibold text-white font-sans">Script</h3>
+          <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">Script</h3>
         </div>
         <textarea
           className="w-full h-32 bg-surface-hover border border-border rounded-lg p-3 text-sm text-gray-300 font-mono resize-y focus:outline-none focus:border-accent/50 transition-colors"
@@ -218,7 +218,7 @@ export default function Thumbnails() {
                 className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all ${
                   mode === m
                     ? "bg-accent/20 text-accent border border-accent/30"
-                    : "text-gray-500 hover:text-white"
+                    : "text-gray-500 hover:text-foreground dark:hover:text-white"
                 }`}
               >
                 {m === "single" ? "Single" : "A/B Testing"}
@@ -240,7 +240,7 @@ export default function Thumbnails() {
                     className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all ${
                       variantCount === n
                         ? "bg-accent/20 text-accent border border-accent/30"
-                        : "text-gray-500 hover:text-white"
+                        : "text-gray-500 hover:text-foreground dark:hover:text-white"
                     }`}
                   >
                     {n} variants
@@ -300,7 +300,7 @@ export default function Thumbnails() {
         <div>
           <div className="flex items-center gap-2 mb-4">
             <CheckCircle className="w-4 h-4 text-green-400" />
-            <h3 className="text-sm font-semibold text-white font-sans">
+            <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">
               Generated Thumbnail{variants.length > 1 ? "s" : ""}
             </h3>
             <span className="text-xs text-gray-600">

@@ -401,7 +401,7 @@ export default function Workflow() {
               {project.title || project.name}
             </p>
           )}
-          <h1 className="text-2xl font-bold text-white">Workflow Control Room</h1>
+          <h1 className="text-2xl font-bold text-foreground dark:text-white">Workflow Control Room</h1>
           <p className="mt-1 text-sm text-gray-500 font-body">
             Pipeline completo: prompts → imágenes → transcripción → render → thumbnail → metadata SEO
           </p>
@@ -477,13 +477,13 @@ export default function Workflow() {
             {generateThumbnail && (
               <div className="flex gap-1 bg-surface-hover rounded-lg p-0.5">
                 <button
-                  className={`px-2.5 py-1 text-xs rounded-md transition-all ${thumbnailMode === "single" ? "bg-accent/20 text-accent border border-accent/30" : "text-gray-500 hover:text-white"}`}
+                  className={`px-2.5 py-1 text-xs rounded-md transition-all ${thumbnailMode === "single" ? "bg-accent/20 text-accent border border-accent/30" : "text-gray-500 hover:text-foreground dark:hover:text-white"}`}
                   onClick={() => setThumbnailMode("single")}
                 >
                   Single
                 </button>
                 <button
-                  className={`px-2.5 py-1 text-xs rounded-md transition-all ${thumbnailMode === "ab_testing" ? "bg-accent/20 text-accent border border-accent/30" : "text-gray-500 hover:text-white"}`}
+                  className={`px-2.5 py-1 text-xs rounded-md transition-all ${thumbnailMode === "ab_testing" ? "bg-accent/20 text-accent border border-accent/30" : "text-gray-500 hover:text-foreground dark:hover:text-white"}`}
                   onClick={() => setThumbnailMode("ab_testing")}
                 >
                   A/B
@@ -541,7 +541,7 @@ export default function Workflow() {
         <Card>
           <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
             <Activity className="w-4 h-4 text-accent" />
-            <h2 className="text-sm font-semibold text-white font-sans">Pipeline Stages</h2>
+            <h2 className="text-sm font-semibold text-foreground dark:text-white font-sans">Pipeline Stages</h2>
           </div>
           <div className="space-y-3">
             {(Object.keys(STAGE_CONFIG) as StageKey[]).map((stageKey, index) => {
@@ -584,7 +584,7 @@ export default function Workflow() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-[10px] text-gray-600 font-mono">{index + 1}</span>
-                      <h3 className="text-sm font-semibold text-white font-sans truncate">{config.label}</h3>
+                      <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans truncate">{config.label}</h3>
                     </div>
                     <p className="text-xs text-gray-500 leading-snug">
                       {isThumbnailOptional ? "Optional — enable en settings" : config.description}
@@ -635,7 +635,7 @@ export default function Workflow() {
           {/* How it works (only when idle) */}
           {isIdle && (
             <div className="mt-4 pt-4 border-t border-border">
-              <h3 className="text-sm font-semibold text-white mb-2 font-sans">How it works</h3>
+              <h3 className="text-sm font-semibold text-foreground dark:text-white mb-2 font-sans">How it works</h3>
               <ol className="space-y-1.5 text-xs text-gray-400">
                 <li className="flex gap-2"><span className="text-accent font-mono">1.</span><span><strong className="text-gray-300">Prompts:</strong> Crea prompts desde el guion con Gemini/OpenRouter</span></li>
                 <li className="flex gap-2"><span className="text-accent font-mono">2.</span><span><strong className="text-gray-300">Imágenes:</strong> Genera escenas con la Forge bridge vía cuentas de Flow</span></li>
@@ -654,7 +654,7 @@ export default function Workflow() {
           <Card>
             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
               <CheckCircle className="w-4 h-4 text-accent" />
-              <h2 className="text-sm font-semibold text-white font-sans">Readiness</h2>
+              <h2 className="text-sm font-semibold text-foreground dark:text-white font-sans">Readiness</h2>
             </div>
             <div className="space-y-2.5">
               {readiness.map((check) => {
@@ -668,7 +668,7 @@ export default function Workflow() {
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm text-white font-sans">{check.label}</p>
+                        <p className="text-sm text-foreground dark:text-white font-sans">{check.label}</p>
                         {ok ? (
                           <span className="px-1.5 py-0.5 text-[10px] font-medium text-green-400 bg-green-500/10 rounded">OK</span>
                         ) : check.action?.to ? (
@@ -692,7 +692,7 @@ export default function Workflow() {
             <div className="flex items-center justify-between mb-3 pb-2 border-b border-border">
               <div className="flex items-center gap-2">
                 <Camera className="w-4 h-4 text-accent" />
-                <h2 className="text-sm font-semibold text-white font-sans">Scene Preview</h2>
+                <h2 className="text-sm font-semibold text-foreground dark:text-white font-sans">Scene Preview</h2>
               </div>
               {projectId && recentScenes.length > 0 && (
                 <Link to={`/images/${projectId}`} className="text-[11px] text-gray-500 hover:text-accent flex items-center gap-1">
@@ -737,7 +737,7 @@ export default function Workflow() {
             <div className="flex items-center justify-between mb-3 pb-2 border-b border-border">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-accent" />
-                <h2 className="text-sm font-semibold text-white font-sans">Live Run Log</h2>
+                <h2 className="text-sm font-semibold text-foreground dark:text-white font-sans">Live Run Log</h2>
               </div>
               {isRunning && (
                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent/15 text-accent">
@@ -811,7 +811,7 @@ function KpiCard({ icon, label, value, subtitle, error, accent = "text-accent" }
         <EmptyState icon={<AlertTriangle className="w-6 h-6" />} title="Unavailable" description="Failed to load" />
       ) : (
         <>
-          <p className="text-2xl font-bold text-white font-sans">{value}</p>
+          <p className="text-2xl font-bold text-foreground dark:text-white font-sans">{value}</p>
           <p className="text-xs text-gray-500 mt-1 truncate">{subtitle}</p>
         </>
       )}
