@@ -89,7 +89,7 @@ function SectionHeader({ title, icon, children }: { title: string; icon: React.R
     <div className="flex items-center justify-between mb-3 pb-2 border-b border-border">
       <div className="flex items-center gap-2">
         <span className="text-accent">{icon}</span>
-        <h3 className="text-sm font-semibold text-white font-sans">{title}</h3>
+        <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">{title}</h3>
       </div>
       {children}
     </div>
@@ -113,7 +113,7 @@ function VariantCard({ variant, selected, onSelect }: { variant: TitleVariant; s
             <span className="text-[10px] font-mono text-accent">{variant.strategy}</span>
             <span className="text-[10px] font-mono text-gray-600">keyword: {variant.target_keyword}</span>
           </div>
-          <p className="text-sm text-white font-body">{variant.title}</p>
+          <p className="text-sm text-foreground dark:text-white font-body">{variant.title}</p>
           <p className="text-[11px] text-gray-600 mt-0.5 font-mono">{variant.title.length} chars</p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -298,14 +298,14 @@ export default function VideoMetadata() {
             <Card>
               <SectionHeader title="SEO Summary" icon={<Target />} />
               <div className="space-y-2 text-xs">
-                <div className="flex justify-between"><span className="text-gray-500">Title variants</span><span className="text-white font-mono">{metadata.title_variants?.length ?? 0}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Chapters</span><span className="text-white font-mono">{metadata.description?.chapters?.length ?? 0}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Tags</span><span className="text-white font-mono">{metadata.tags?.length ?? 0}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Hashtags</span><span className="text-white font-mono">{metadata.hashtags?.length ?? 0}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Category</span><span className="text-white font-mono truncate max-w-[140px]">{metadata.category ?? "—"}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Text length</span><span className="text-white font-mono">{metadata.generated_from_length ?? 0} chars</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Title variants</span><span className="text-foreground dark:text-white font-mono">{metadata.title_variants?.length ?? 0}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Chapters</span><span className="text-foreground dark:text-white font-mono">{metadata.description?.chapters?.length ?? 0}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Tags</span><span className="text-foreground dark:text-white font-mono">{metadata.tags?.length ?? 0}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Hashtags</span><span className="text-foreground dark:text-white font-mono">{metadata.hashtags?.length ?? 0}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Category</span><span className="text-foreground dark:text-white font-mono truncate max-w-[140px]">{metadata.category ?? "—"}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Text length</span><span className="text-foreground dark:text-white font-mono">{metadata.generated_from_length ?? 0} chars</span></div>
                 {metadata.generated_at && (
-                  <div className="flex justify-between"><span className="text-gray-500">Generated</span><span className="text-white font-mono text-[10px]">{new Date(metadata.generated_at).toLocaleString()}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Generated</span><span className="text-foreground dark:text-white font-mono text-[10px]">{new Date(metadata.generated_at).toLocaleString()}</span></div>
                 )}
               </div>
             </Card>
@@ -372,7 +372,7 @@ export default function VideoMetadata() {
                   <div className="space-y-3">
                     <div className="bg-surface-hover rounded-lg p-3 border border-border">
                       <p className="text-xs text-gray-500 mb-1 font-semibold">Primary Hook</p>
-                      <p className="text-sm text-white font-body">{metadata.description.primary}</p>
+                      <p className="text-sm text-foreground dark:text-white font-body">{metadata.description.primary}</p>
                     </div>
                     <div className="bg-surface-hover rounded-lg p-3 border border-border">
                       <p className="text-xs text-gray-500 mb-1 font-semibold">Body</p>
@@ -435,7 +435,7 @@ export default function VideoMetadata() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card>
                   <SectionHeader title="Category" icon={<PlaySquare />} />
-                  <p className="text-sm text-white font-body bg-surface-hover rounded-lg px-3 py-2 border border-border">{metadata.category ?? "—"}</p>
+                  <p className="text-sm text-foreground dark:text-white font-body bg-surface-hover rounded-lg px-3 py-2 border border-border">{metadata.category ?? "—"}</p>
                 </Card>
                 <Card>
                   <SectionHeader title="Thumbnail Text" icon={<ImageIcon />}>
@@ -444,7 +444,7 @@ export default function VideoMetadata() {
                   <div className="space-y-2">
                     {(metadata.thumbnail_text_overlays ?? []).map((o, i) => (
                       <div key={i} className="bg-surface-hover rounded-lg px-3 py-2 border border-border">
-                        <p className="text-sm text-white font-body">{o.text}</p>
+                        <p className="text-sm text-foreground dark:text-white font-body">{o.text}</p>
                         <p className="text-[10px] text-gray-600 mt-0.5 font-mono">{o.style}</p>
                       </div>
                     ))}
@@ -456,7 +456,7 @@ export default function VideoMetadata() {
                     {(metadata.seo_keywords ?? []).map((k, i) => (
                       <div key={i} className="flex items-center justify-between bg-surface-hover rounded px-2 py-1.5 border border-border">
                         <div className="min-w-0">
-                          <p className="text-xs text-white font-mono truncate">{k.keyword}</p>
+                          <p className="text-xs text-foreground dark:text-white font-mono truncate">{k.keyword}</p>
                           <p className="text-[10px] text-gray-600">{k.type}</p>
                         </div>
                         <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
@@ -477,7 +477,7 @@ export default function VideoMetadata() {
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="bg-surface-hover rounded-lg p-3 border border-border">
                       <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-1">Age Range</p>
-                      <p className="text-sm text-white font-mono">{metadata.target_audience.age_range}</p>
+                      <p className="text-sm text-foreground dark:text-white font-mono">{metadata.target_audience.age_range}</p>
                     </div>
                     <div className="bg-surface-hover rounded-lg p-3 border border-border">
                       <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-1">Interests</p>

@@ -276,14 +276,14 @@ export default function Transcribe() {
             <Card>
               <div className="flex items-center gap-2 mb-3">
                 <FolderOpen className="w-4 h-4 text-accent" />
-                <h3 className="text-sm font-semibold text-white font-sans">Detected Files</h3>
+                <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">Detected Files</h3>
               </div>
               
               {detectedAudio && (
                 <div className="flex items-center gap-3 p-3 bg-surface-hover rounded-lg mb-2">
                   <FileAudio className="w-5 h-5 text-blue-400 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{detectedAudio.filename}</p>
+                    <p className="text-sm font-medium text-foreground dark:text-white truncate">{detectedAudio.filename}</p>
                     <p className="text-xs text-gray-500">
                       {detectedAudio.size_mb?.toFixed(2)} MB • {detectedAudio.location}
                     </p>
@@ -296,7 +296,7 @@ export default function Transcribe() {
                 <div className="flex items-center gap-3 p-3 bg-surface-hover rounded-lg">
                   <FileText className="w-5 h-5 text-yellow-400 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{detectedText.filename}</p>
+                    <p className="text-sm font-medium text-foreground dark:text-white truncate">{detectedText.filename}</p>
                     <p className="text-xs text-gray-500">
                       {detectedText.size_kb?.toFixed(2)} KB • {detectedText.location}
                     </p>
@@ -331,7 +331,7 @@ export default function Transcribe() {
             <Card className="mt-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-white">{audioFile.name}</p>
+                  <p className="text-sm font-medium text-foreground dark:text-white">{audioFile.name}</p>
                   <p className="text-xs text-gray-500">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</p>
                 </div>
               </div>
@@ -370,7 +370,7 @@ export default function Transcribe() {
           )}
 
           <Card>
-            <h3 className="text-sm font-semibold text-white mb-3 font-sans">Job Status</h3>
+            <h3 className="text-sm font-semibold text-foreground dark:text-white mb-3 font-sans">Job Status</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-500 font-body">Status</span>

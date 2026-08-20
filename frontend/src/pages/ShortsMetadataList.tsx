@@ -77,7 +77,7 @@ function PlatformSection({ data, platform }: { data: ShortMetadataEntry["tiktok"
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           {icon}
-          <h4 className="text-xs font-semibold text-white uppercase tracking-wider">{platform === "tiktok" ? "TikTok" : "YouTube Shorts"}</h4>
+          <h4 className="text-xs font-semibold text-foreground dark:text-white uppercase tracking-wider">{platform === "tiktok" ? "TikTok" : "YouTube Shorts"}</h4>
         </div>
         <CopyBtn text={`${data.title}\n\n${data.description}`} label={`${platform} metadata`} />
       </div>
@@ -88,7 +88,7 @@ function PlatformSection({ data, platform }: { data: ShortMetadataEntry["tiktok"
           <span className="text-[10px] text-gray-600 font-semibold uppercase">Title</span>
           <CopyBtn text={data.title} label="Title" />
         </div>
-        <p className="text-sm text-white font-body bg-surface-hover rounded-lg px-3 py-2 border border-border">{data.title}</p>
+        <p className="text-sm text-foreground dark:text-white font-body bg-surface-hover rounded-lg px-3 py-2 border border-border">{data.title}</p>
         <p className="text-[11px] text-gray-600 mt-0.5 font-mono">{data.title.length} chars</p>
       </div>
 
@@ -246,7 +246,7 @@ export default function ShortsMetadataList() {
               </div>
             ) : (
               <div className="space-y-2 text-xs">
-                <div className="flex justify-between"><span className="text-gray-500">Total shorts</span><span className="text-white font-mono">{stats.total}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Total shorts</span><span className="text-foreground dark:text-white font-mono">{stats.total}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">With TikTok</span><span className="text-pink-400 font-mono">{stats.withTikTok}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">With YouTube</span><span className="text-red-400 font-mono">{stats.withYouTube}</span></div>
               </div>

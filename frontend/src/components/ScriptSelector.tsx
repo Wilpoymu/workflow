@@ -181,12 +181,12 @@ export default function ScriptSelector({ projectId, onSelect, onClose }: ScriptS
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-surface-hover text-gray-500 hover:text-white transition-colors"
+            className="p-1.5 rounded-lg hover:bg-surface-hover text-gray-500 hover:text-foreground dark:hover:text-white transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-sm font-semibold text-white font-sans">Script Editor</h2>
+            <h2 className="text-sm font-semibold text-foreground dark:text-white font-sans">Script Editor</h2>
             <p className="text-[11px] text-gray-600 font-mono">
               {loading ? "Loading..." : `${words.length} words · ${paragraphs.length} paragraphs${scriptText ? " (from text)" : ""}`}
             </p>
@@ -339,7 +339,7 @@ export default function ScriptSelector({ projectId, onSelect, onClose }: ScriptS
             <div className="flex items-center justify-between max-w-3xl mx-auto">
               <div className="flex items-center gap-2">
                 <button
-                  className="p-2 rounded-lg hover:bg-surface-hover text-gray-500 hover:text-white transition-colors disabled:opacity-30"
+                  className="p-2 rounded-lg hover:bg-surface-hover text-gray-500 hover:text-foreground dark:hover:text-white transition-colors disabled:opacity-30"
                   disabled={!selection}
                   onClick={() => adjustSelection(-5)}
                   title="Expand start (5 words earlier)"
@@ -355,7 +355,7 @@ export default function ScriptSelector({ projectId, onSelect, onClose }: ScriptS
                   </span>
                 )}
                 <button
-                  className="p-2 rounded-lg hover:bg-surface-hover text-gray-500 hover:text-white transition-colors disabled:opacity-30"
+                  className="p-2 rounded-lg hover:bg-surface-hover text-gray-500 hover:text-foreground dark:hover:text-white transition-colors disabled:opacity-30"
                   disabled={!selection}
                   onClick={() => adjustSelection(5)}
                   title="Expand end (5 words later)"

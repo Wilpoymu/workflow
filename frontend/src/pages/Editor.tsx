@@ -407,7 +407,7 @@ export default function Editor() {
         >
           <div className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-accent" />
-            <h3 className="text-sm font-semibold text-white font-sans">Full Script</h3>
+            <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">Full Script</h3>
             {scriptLoading && <Loader2 className="w-3 h-3 text-gray-500 animate-spin" />}
           </div>
           {scriptOpen ? (
@@ -487,7 +487,7 @@ export default function Editor() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-pink-400" />
-            <h3 className="text-sm font-semibold text-white font-sans">Image Style</h3>
+            <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">Image Style</h3>
           </div>
 
           {/* Gemini Web Bridge Status + Toggle */}

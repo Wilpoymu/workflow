@@ -277,7 +277,7 @@ export default function Images() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-accent" />
-            <h3 className="text-sm font-semibold text-white font-sans">
+            <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">
               Connected Accounts
             </h3>
             <Badge variant={connectedAccounts.length > 0 ? "success" : "default"}>
@@ -318,7 +318,7 @@ export default function Images() {
                   {account.email[0].toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white truncate">{account.email}</p>
+                  <p className="text-sm text-foreground dark:text-white truncate">{account.email}</p>
                   <p className="text-xs text-gray-500 font-mono">{account.hash.slice(0, 12)}...</p>
                 </div>
                 <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
@@ -344,7 +344,7 @@ export default function Images() {
                 className="flex-1 h-2 bg-surface-hover rounded-lg appearance-none cursor-pointer"
                 style={{ accentColor: "#2dd4bf" }}
               />
-              <span className="text-sm font-mono text-white w-8 text-center">
+              <span className="text-sm font-mono text-foreground dark:text-white w-8 text-center">
                 {concurrency}
               </span>
             </div>
@@ -370,7 +370,7 @@ export default function Images() {
                     className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all ${
                       model === m
                         ? "bg-accent/20 text-accent border border-accent/30"
-                        : "text-gray-500 hover:text-white"
+                        : "text-gray-500 hover:text-foreground dark:hover:text-white"
                     }`}
                   >
                     {m}
@@ -392,7 +392,7 @@ export default function Images() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Upload className="w-4 h-4 text-pink-400" />
-            <h3 className="text-sm font-semibold text-white font-sans">
+            <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">
               Character Reference
             </h3>
           </div>

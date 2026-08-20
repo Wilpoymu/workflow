@@ -30,7 +30,7 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
     >
       <div className="bg-surface-card border border-border rounded-xl p-6 min-w-[400px] max-w-lg w-full shadow-2xl animate-scale-in">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white font-sans">{title}</h2>
+          <h2 className="text-lg font-semibold text-foreground dark:text-white font-sans">{title}</h2>
           <button onClick={onClose} className="text-gray-600 hover:text-gray-300 transition-colors">
             <X className="w-5 h-5" />
           </button>
