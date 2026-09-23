@@ -7,6 +7,7 @@ from pathlib import Path
 from app.services.shorts_maker.srt_parser import entries_in_range, entries_text, parse_srt
 from app.services.shorts_maker.types import ClipSuggestion
 
+# Engagement signals — topic-agnostic
 _HOOK_PHRASES = [
     r"necesito\s+que\s+me\s+escuches", r"presta\s+mucha?\s+atencion",
     r"esto\s+es\s+para\s+(vos|ti)", r"no\s+es\s+un\s+video\s+mas",
@@ -15,24 +16,25 @@ _HOOK_PHRASES = [
     r"esto\s+te\s+interesa", r"lo\s+que\s+te\s+voy\s+a\s+contar",
     r"preparate?\s+porque", r"esto\s+apenas\s+comienza",
     r"ha\s+llegado\s+tu\s+momento", r"dejame\s+decirte",
-    r"el\s+universo\s+todavia\s+no\s+ha\s+terminado",
+    r"lo\s+que\s+sigue", r"te\s+voy\s+a\s+explicar",
+    r"la\s+verdad\s+es\s+que", r"lo\s+mas\s+importante",
+    r"nunca\s+habias?\s+visto", r"esto\s+es\s+clave",
 ]
 
 _KEYWORDS = [
-    r"\bamor\b", r"\bdinero\b", r"\bsalud\b", r"\btrabajo\b",
-    r"\bfinanzas?\b", r"\babundancia\b", r"\bprosperidad\b",
-    r"\btransformacion\b", r"\bpoder\b", r"\beconomi[ac]",
-    r"\blaboral\b", r"\bprofesional\b", r"\bespiritual\b",
-    r"\bcreatividad\b", r"\bintuicion\b",
+    r"\bclave\b", r"\bsecreto\b", r"\besencial\b", r"\bimportante\b",
+    r"\bconsejo\b", r"\btruco\b", r"\bpasos?\b", r"\bguia\b",
+    r"\btutorial\b", r"\berror\b", r"\bmejor\b", r"\brapido\b",
+    r"\bfacil\b", r"\bgratis\b", r"\bnuevo\b", r"\bcambio\b",
+    r"\bresultado\b", r"\bdescubre?\b", r"\baprende?\b",
+    r"\bpor\s+que\b", r"\brazon\b", r"\bmotivo\b",
 ]
 
 _POWER_PHRASES = [
-    r"tu\s+momento", r"tu\s+año", r"tu\s+mes", r"eres?\s+capaz",
-    r"el\s+universo\s+(te\s+)?(dice|preparo|tiene|esta)",
-    r"no\s+te\s+rindas", r"confia\s+en\s+(vos|ti|el\s+universo)",
-    r"mereces?", r"imparable", r"poderoso", r"grandioso",
-    r"extraordinario", r"increible", r"sorprendente",
-    r"vale\s+la\s+pena", r"no\s+es\s+casualidad",
+    r"no\s+te\s+rindas", r"mereces?", r"imparable",
+    r"vale\s+la\s+pena", r"esto\s+es\s+lo\s+que", r"lo\s+mejor",
+    r"te\s+va\s+a\s+sorprender", r"no\s+vas\s+a\s+creer",
+    r"la\s+pregunta\s+es", r"lo\s+cierto\s+es\s+que",
 ]
 
 _CALL_TO_ACTION = [
@@ -40,17 +42,8 @@ _CALL_TO_ACTION = [
     r"comparte?\s+este\s+(video|mensaje)", r"deja\s+tu\s+like",
     r"comenta?\s+abajo", r"cuentamelo\s+en\s+los\s+comentarios",
     r"dimelo\s+en\s+los\s+comentarios", r"nos\s+vemos\s+en\s+el\s+proximo\s+video",
+    r"dale\s+like", r"comparte?\s+esto",
 ]
-
-_SIGNS = [
-    "aries", "tauro", "geminis", "cancer", "leo", "virgo",
-    "libra", "escorpio", "sagitario", "capricornio", "acuario", "piscis",
-]
-
-_SIGN_VARIANTS = {
-    "geminis": ["geminis", "géminis"],
-    "cancer": ["cancer", "cáncer"],
-}
 
 
 def _score_text(text: str, position_ratio: float) -> float:
@@ -146,17 +139,6 @@ def _find_sentence_end(entries: list, end_idx: int) -> int:
     return min(len(entries) - 1, end_idx)
 
 
-def _detect_section(text: str) -> str | None:
-    """Detect if text starts with a zodiac sign name."""
-    pl = _normalize(text)
-    for sign in _SIGNS:
-        variants = _SIGN_VARIANTS.get(sign, [sign])
-        for v in variants:
-            if re.match(rf"^{v}[,.\s]", pl):
-                return sign
-    return None
-
-
 def _find_paragraph_in_srt(
     paragraph: str,
     entries: list,
@@ -184,21 +166,6 @@ def _find_paragraph_in_srt(
     return -1
 
 
-def _find_sign_in_srt(
-    sign: str,
-    entries: list,
-    start_from: int = 0,
-) -> int:
-    """Find the first SRT entry that mentions this sign name."""
-    variants = _SIGN_VARIANTS.get(sign, [sign])
-    for i in range(start_from, len(entries)):
-        etext = _normalize(entries[i].text)
-        for v in variants:
-            if re.search(rf"\b{v}\b", etext):
-                return i
-    return -1
-
-
 def _build_segments(
     text_paragraphs: list[str],
     entries: list,
@@ -216,26 +183,16 @@ def _build_segments(
     last_idx = 0
     for para in text_paragraphs:
         idx = _find_paragraph_in_srt(para, entries, start_from=last_idx)
-
-        # Fallback: if paragraph starts with a sign, try to find sign mention
-        if idx < 0:
-            section = _detect_section(para)
-            if section:
-                idx = _find_sign_in_srt(section, entries, start_from=last_idx)
-
         if idx >= 0:
             para_entry_indices.append(idx)
             last_idx = idx
         else:
-            # Could not find — still add a placeholder so we can skip later
             para_entry_indices.append(-1)
 
     # Phase 2: build segments from matched paragraphs
     for i, idx in enumerate(para_entry_indices):
         if idx < 0:
             continue
-
-        section = _detect_section(text_paragraphs[i]) or ""
 
         # Snap start to sentence boundary (walk backward)
         sent_start_idx = _find_sentence_start(entries, idx)
@@ -281,10 +238,73 @@ def _build_segments(
             "start_sec": bs,
             "end_sec": be,
             "text": entries_text(seg_entries),
-            "section": section,
         })
 
     return segments
+
+
+def _build_segments_from_srt(entries: list, min_duration: float = 20.0, max_duration: float = 90.0) -> list[dict]:
+    """Build candidate segments directly from SRT entries when no text.txt is available.
+    
+    Groups entries by sentence boundaries and merges into segments of appropriate duration.
+    Uses a sliding window to ensure full coverage.
+    """
+    if not entries:
+        return []
+
+    # Group entries into sentences
+    sentences: list[list] = []
+    current_sentence: list = []
+    for e in entries:
+        current_sentence.append(e)
+        text = e.text.strip()
+        if text and text[-1] in ".!?\"\u2026":
+            sentences.append(current_sentence)
+            current_sentence = []
+    if current_sentence:
+        sentences.append(current_sentence)
+
+    if not sentences:
+        sentences = [[e] for e in entries]
+
+    segments = []
+    # Build segments by merging consecutive sentences (sliding window)
+    for start_idx in range(len(sentences)):
+        for end_idx in range(start_idx + 1, len(sentences) + 1):
+            merged = []
+            for si in range(start_idx, end_idx):
+                merged.extend(sentences[si])
+            if not merged:
+                continue
+            dur = merged[-1].end_sec - merged[0].start_sec
+            if dur < min_duration:
+                if end_idx == len(sentences):
+                    # Extend last segment to reach min duration
+                    continue
+                else:
+                    continue  # Keep merging
+            if dur > max_duration:
+                break  # Stop extending, try next start
+            text = " ".join(e.text for e in merged)
+            segments.append({
+                "start_sec": merged[0].start_sec,
+                "end_sec": merged[-1].end_sec,
+                "text": text,
+            })
+            break  # Move to next start
+
+    # Deduplicate overlapping segments
+    unique = []
+    for seg in segments:
+        overlap = False
+        for existing in unique:
+            if (seg["start_sec"] < existing["end_sec"] and seg["end_sec"] > existing["start_sec"]):
+                overlap = True
+                break
+        if not overlap:
+            unique.append(seg)
+
+    return unique or segments[:top_n]
 
 
 def analyze_srt(
@@ -300,6 +320,7 @@ def analyze_srt(
     total_dur = entries[-1].end_sec - entries[0].start_sec
 
     text_path = srt_path.parent / "text.txt"
+    segments = []
     if text_path.exists():
         raw = text_path.read_text(encoding="utf-8")
         paragraphs = [
@@ -307,12 +328,14 @@ def analyze_srt(
             for p in re.split(r"\n\s*\n", raw.strip())
             if len(p.strip().split()) >= 15
         ]
-        segments = _build_segments(paragraphs, entries, total_dur)
-    else:
-        segments = []
+        if paragraphs:
+            segments = _build_segments(paragraphs, entries, total_dur)
+
+    # Fallback: build segments directly from SRT if text.txt is missing or matching failed
+    if not segments:
+        segments = _build_segments_from_srt(entries, min_duration, max_duration)
 
     scored = []
-    sign_scored = []
     for seg in segments:
         s, e = seg["start_sec"], seg["end_sec"]
         d = e - s
@@ -327,20 +350,13 @@ def analyze_srt(
         if any(re.search(p, tl) for p in _KEYWORDS): parts.append("tema-clave")
         if any(re.search(p, tl) for p in _POWER_PHRASES): parts.append("frase-poderosa")
         if pos < 0.12: parts.append("intro")
-        if seg.get("section"): parts.append(seg["section"])
         reason = ", ".join(parts) if parts else "interes-general"
 
-        item = (s, e, score, reason, seg["text"])
-        if seg.get("section") and seg["section"] not in ("intro",):
-            sign_scored.append(item)
-        else:
-            scored.append(item)
+        scored.append((s, e, score, reason, seg["text"]))
 
     scored.sort(key=lambda x: x[2], reverse=True)
-    sign_scored.sort(key=lambda x: x[2], reverse=True)
 
-    # Prioritize: all sign segments first, then fill with generic
-    ordered = sign_scored + scored
+    ordered = scored
 
     used = []
     suggestions = []
