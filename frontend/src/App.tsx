@@ -1,5 +1,5 @@
 import { createContext, useContext, useState } from "react"
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom"
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom"
 import { LayoutDashboard, FileEdit, Image, ImageDown, Mic, Video, Zap, Scissors, FolderOpen, Menu, Hash, Sparkles } from "lucide-react"
 import { ToastProvider } from "./components/Toast"
 import { useActiveProject } from "./hooks/useActiveProject"
@@ -14,6 +14,7 @@ import ShortsMetadata from "./pages/ShortsMetadata"
 import ShortsMetadataList from "./pages/ShortsMetadataList"
 import VideoMetadata from "./pages/VideoMetadata"
 import Thumbnails from "./pages/Thumbnails"
+import Timeline from "./pages/Timeline"
 import EmptyState from "./components/EmptyState"
 import { api } from "./api/client"
 
@@ -43,18 +44,28 @@ function NoProjectSelected({ page, icon: Icon }: { page: string; icon: React.Com
   )
 }
 
-const nav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/editor", label: "Editor", icon: FileEdit },
-  { to: "/images", label: "Images", icon: Image },
-  { to: "/thumbnails", label: "Thumbnail", icon: ImageDown },
-  { to: "/transcribe", label: "Transcribe", icon: Mic },
-  { to: "/render", label: "Render", icon: Video },
-  { to: "/workflow", label: "Workflow", icon: Zap },
-  { to: "/shorts", label: "Shorts", icon: Scissors },
-  { to: "/shorts-metadata", label: "Metadata", icon: Hash },
-  { to: "/metadata/shorts", label: "Shorts SEO", icon: Hash },
-  { to: "/metadata", label: "Video SEO", icon: Sparkles },
+const navGroups = [
+  {
+    label: "Pipeline",
+    items: [
+      { to: "/", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/editor", label: "Editor", icon: FileEdit },
+      { to: "/images", label: "Images", icon: Image },
+      { to: "/thumbnails", label: "Thumbnail", icon: ImageDown },
+      { to: "/transcribe", label: "Transcribe", icon: Mic },
+      { to: "/render", label: "Render", icon: Video },
+      { to: "/workflow", label: "Workflow", icon: Zap },
+    ],
+  },
+  {
+    label: "Shorts & SEO",
+    items: [
+      { to: "/shorts", label: "Shorts", icon: Scissors },
+      { to: "/shorts-metadata", label: "Metadata", icon: Hash },
+      { to: "/metadata/shorts", label: "Shorts SEO", icon: Hash },
+      { to: "/metadata", label: "Video SEO", icon: Sparkles },
+    ],
+  },
 ]
 
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -63,8 +74,15 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const location = useLocation()
 
   const isActive = (base: string) => {
-    if (base === "/") return location.pathname === "/"
-    return location.pathname.startsWith(base)
+    const path = location.pathname
+    if (base === "/") return path === "/"
+    const candidates = navGroups
+      .flatMap((g) => g.items.map((i) => i.to))
+      .filter((b) => b !== "/")
+    const match = candidates
+      .filter((b) => path === b || path.startsWith(b + "/"))
+      .sort((a, b) => b.length - a.length)[0]
+    return match === base
   }
 
   const handleClick = (base: string) => {
@@ -85,37 +103,51 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
       )}
       <aside className={`${
         open ? "translate-x-0" : "-translate-x-full"
-      } lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-30 w-56 bg-surface-card border-r border-border flex flex-col shrink-0 transition-transform duration-200`}>
+      } lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-30 w-64 bg-surface-card border-r border-border flex flex-col shrink-0 transition-transform duration-200`}>
         <div className="px-5 pt-5 pb-4 border-b border-border">
-          <h1 className="text-lg font-bold font-sans">
-            <span className="text-gradient">Workflow</span>
-          </h1>
-          <p className="text-[11px] text-gray-500 font-body mt-0.5 tracking-wide uppercase">
-            Video Production Pipeline
-          </p>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 shrink-0 rounded-[10px] border border-border flex items-center justify-center font-mono font-bold text-accent bg-gradient-to-b from-accent/15 to-transparent">
+              W
+            </div>
+            <div className="min-w-0">
+              <h1 className="font-serif font-normal text-[21px] leading-none text-ink">Workflow</h1>
+              <p className="font-mono text-[9px] text-ink-faint mt-1 tracking-[0.2em] uppercase truncate">
+                Video pipeline
+              </p>
+            </div>
+          </div>
         </div>
 
-        <nav className="flex-1 flex flex-col gap-1 p-3">
-          {nav.map(({ to, label, icon: Icon }) => (
-            <button
-              key={to}
-              onClick={() => handleClick(to)}
-              className={`nav-link ${isActive(to) ? "nav-link-active" : ""}`}
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-            </button>
+        <nav className="flex-1 flex flex-col p-3 overflow-y-auto">
+          {navGroups.map((group) => (
+            <div key={group.label}>
+              <div className="nav-group-label flex items-center gap-2.5 mx-3 mt-5 mb-2 after:content-[''] after:h-px after:flex-1 after:bg-border">
+                {group.label}
+              </div>
+              <div className="flex flex-col gap-0.5">
+                {group.items.map(({ to, label, icon: Icon }) => (
+                  <button
+                    key={to}
+                    onClick={() => handleClick(to)}
+                    className={`nav-link ${isActive(to) ? "nav-link-active" : ""}`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 
-        <div className="border-t border-border">
+        <div className="p-3 border-t border-border">
           <button
             onClick={() => activeProject && api.openFolder(activeProject)}
             disabled={!activeProject}
-            className="flex items-center gap-2 w-full px-5 py-3 text-xs text-gray-500 hover:text-accent hover:bg-surface-hover transition-colors disabled:opacity-30 disabled:pointer-events-none"
+            className="flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-lg border border-dashed border-border text-ink-faint hover:text-accent hover:border-accent/50 hover:bg-accent/5 transition-all font-mono text-[10px] tracking-[0.12em] uppercase disabled:opacity-30 disabled:pointer-events-none"
           >
             <FolderOpen className="w-3.5 h-3.5" />
-            Open Project Folder
+            Open project folder
           </button>
         </div>
       </aside>
@@ -131,7 +163,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <main className="flex-1 overflow-y-auto p-6 lg:p-8">
         <button
-          className="lg:hidden flex items-center gap-2 text-sm text-gray-400 mb-4 hover:text-white transition-colors"
+          className="lg:hidden flex items-center gap-2 text-sm text-ink-dim mb-4 hover:text-ink transition-colors"
           onClick={() => setSidebarOpen(true)}
         >
           <Menu className="w-5 h-5" />
@@ -163,6 +195,7 @@ export default function App() {
               <Route path="/metadata/shorts/:projectId" element={<ShortsMetadataList />} />
               <Route path="/metadata/:projectId" element={<VideoMetadata />} />
               <Route path="/thumbnails/:projectId" element={<Thumbnails />} />
+              <Route path="/timeline/:projectId" element={<Timeline />} />
               <Route path="/editor" element={<NoProjectSelected page="Editor" icon={FileEdit} />} />
               <Route path="/images" element={<NoProjectSelected page="Images" icon={Image} />} />
               <Route path="/transcribe" element={<NoProjectSelected page="Transcribe" icon={Mic} />} />
@@ -173,6 +206,7 @@ export default function App() {
               <Route path="/metadata/shorts" element={<NoProjectSelected page="Shorts SEO" icon={Hash} />} />
               <Route path="/metadata" element={<NoProjectSelected page="Video SEO" icon={Sparkles} />} />
               <Route path="/thumbnails" element={<NoProjectSelected page="Thumbnail" icon={ImageDown} />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Layout>
         </BrowserRouter>

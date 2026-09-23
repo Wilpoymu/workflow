@@ -75,11 +75,11 @@ export default function TimelineTrack({
   return (
     <div
       ref={containerRef}
-      className="relative h-16 bg-slate-950/50 border-b border-slate-800/50"
+      className="relative h-16 bg-surface/50 border-b border-border/50"
     >
       {/* ── Track label overlay ──────────────────────────────────── */}
-      <div className="absolute left-0 top-0 bottom-0 w-20 z-10 bg-slate-900/80 flex items-center px-2">
-        <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider truncate">
+      <div className="absolute left-0 top-0 bottom-0 w-20 z-10 bg-surface-card/80 flex items-center px-2">
+        <span className="text-[10px] text-ink-faint font-medium uppercase tracking-wider truncate">
           {track.name}
         </span>
       </div>
@@ -145,7 +145,7 @@ export default function TimelineTrack({
           </div>
         ) : (
           /* Empty track state */
-          <div className="flex items-center justify-center h-full text-[10px] text-slate-700 font-mono select-none">
+          <div className="flex items-center justify-center h-full text-[10px] text-ink-faint/70 font-mono select-none">
             No clips
           </div>
         )}
@@ -214,7 +214,7 @@ function TransitionZone({
           transition-all duration-100
           ${
             hovering
-              ? "opacity-100 scale-100 bg-slate-700/80 border border-slate-500/50"
+              ? "opacity-100 scale-100 bg-surface-hover/80 border border-ink-faint/50"
               : hasTransition
                 ? "opacity-0 scale-75"
                 : "opacity-0 scale-75"
@@ -227,7 +227,7 @@ function TransitionZone({
           height="10"
           viewBox="0 0 10 10"
           fill="none"
-          className="text-slate-300"
+          className="text-ink-dim"
         >
           <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>

@@ -177,7 +177,7 @@ export default function Dashboard() {
   }
 
   if (loading) {
-    return <p className="text-sm text-gray-600 font-body mt-8">Loading workspace...</p>
+    return <p className="text-sm text-ink-faint font-body mt-8">Loading workspace...</p>
   }
 
   if (setup && !setup.has_channels) {
@@ -189,6 +189,7 @@ export default function Dashboard() {
   return (
     <div>
       <PageHeader
+        eyebrow="Channel · active workspace"
         title={activeChannelObj?.name ?? "Dashboard"}
         description="Manage your video production projects"
         actions={
@@ -217,7 +218,7 @@ export default function Dashboard() {
               className={`flex items-center gap-2 px-3 py-1.5 rounded-l-md text-sm font-medium transition-all duration-150 ${
                 activeChannel === ch.id
                   ? "bg-accent/10 text-accent shadow-sm"
-                  : "text-gray-500 hover:text-gray-300 hover:bg-surface-hover"
+                  : "text-ink-dim hover:text-ink-dim hover:bg-surface-hover"
               }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" />
@@ -227,8 +228,8 @@ export default function Dashboard() {
               onClick={(e) => { e.stopPropagation(); setShowDeleteChannel(ch.id) }}
               className={`px-1.5 py-1.5 rounded-r-md text-sm transition-all duration-150 opacity-0 group-hover:opacity-100 ${
                 activeChannel === ch.id
-                  ? "bg-accent/10 text-gray-600 hover:text-red-400"
-                  : "text-gray-700 hover:text-red-400 hover:bg-surface-hover"
+                  ? "bg-accent/10 text-ink-faint hover:text-danger"
+                  : "text-ink-faint hover:text-danger hover:bg-surface-hover"
               }`}
               title="Delete channel"
             >
@@ -240,7 +241,7 @@ export default function Dashboard() {
 
       {/* Pipeline */}
       <section className="mb-10">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 font-sans">
+        <h2 className="sec-label flex items-center gap-3 mb-4 after:content-[''] after:h-px after:flex-1 after:bg-border">
           Pipeline
         </h2>
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -255,13 +256,13 @@ export default function Dashboard() {
                   <Card className="flex items-center gap-4 py-3 px-4 card-hover">
                     <Icon className="w-5 h-5 text-accent shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-white">{step.label}</p>
-                      <p className="text-xs text-gray-600 font-body">{step.desc}</p>
+                      <p className="text-sm font-semibold text-ink">{step.label}</p>
+                      <p className="text-xs text-ink-faint font-body">{step.desc}</p>
                     </div>
                   </Card>
                 </button>
                 {i < pipelineSteps.length - 1 && (
-                  <ArrowRight className="w-4 h-4 text-gray-700 shrink-0" />
+                  <ArrowRight className="w-4 h-4 text-ink-faint shrink-0" />
                 )}
               </div>
             )
@@ -271,7 +272,7 @@ export default function Dashboard() {
 
       {/* Projects */}
       <section>
-        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 font-sans">
+        <h2 className="sec-label flex items-center gap-3 mb-4 after:content-[''] after:h-px after:flex-1 after:bg-border">
           Projects
         </h2>
 
@@ -297,40 +298,40 @@ export default function Dashboard() {
                     onClick={() => goToProject(p.id, "editor")}
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <h3 className="font-semibold text-white font-sans">{p.name}</h3>
+                      <h3 className="font-semibold text-ink font-sans">{p.name}</h3>
                       <Badge variant={s.variant}>{s.label}</Badge>
                     </div>
-                    <p className="text-xs text-gray-600 font-body mb-4">
+                    <p className="text-xs text-ink-faint font-body mb-4">
                       Created {new Date(p.created_at).toLocaleDateString()}
                     </p>
                   </div>
                   <div className="pt-3 border-t border-border flex items-center gap-1">
                     <button
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-gray-500 hover:text-accent hover:bg-accent/5 transition-all"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-ink-dim hover:text-accent hover:bg-accent/5 transition-all"
                       onClick={() => goToProject(p.id, "editor")}
                     >
                       <Play className="w-3 h-3" /> Editor
                     </button>
                     <button
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-gray-500 hover:text-accent hover:bg-accent/5 transition-all"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-ink-dim hover:text-accent hover:bg-accent/5 transition-all"
                       onClick={() => goToProject(p.id, "images")}
                     >
                       <Image className="w-3 h-3" /> Images
                     </button>
                     <button
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-gray-500 hover:text-accent hover:bg-accent/5 transition-all"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-ink-dim hover:text-accent hover:bg-accent/5 transition-all"
                       onClick={() => goToProject(p.id, "transcribe")}
                     >
                       <Mic className="w-3 h-3" /> Audio
                     </button>
                     <button
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-gray-500 hover:text-accent hover:bg-accent/5 transition-all"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-ink-dim hover:text-accent hover:bg-accent/5 transition-all"
                       onClick={() => goToProject(p.id, "render")}
                     >
                       <Video className="w-3 h-3" /> Render
                     </button>
                     <button
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-gray-500 hover:text-accent hover:bg-accent/5 transition-all"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-ink-dim hover:text-accent hover:bg-accent/5 transition-all"
                       onClick={() => goToProject(p.id, "workflow")}
                     >
                       <Zap className="w-3 h-3" /> Run
@@ -346,17 +347,17 @@ export default function Dashboard() {
       {/* Orphaned Project Scanner */}
       <section className="mt-10">
         <details className="group">
-          <summary className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 font-sans hover:text-gray-400 transition-colors">
+          <summary className="sec-label flex items-center gap-2.5 cursor-pointer mb-4 hover:text-ink-dim transition-colors">
             <Search className="w-3.5 h-3.5" />
             Unindexed Projects
             {orphans !== null && (
-              <span className="text-gray-600 font-mono normal-case">({orphans.length} found)</span>
+              <span className="text-ink-faint font-mono normal-case">({orphans.length} found)</span>
             )}
           </summary>
 
           {orphans === null && !scanning && (
             <div className="flex items-center gap-3 p-4 rounded-lg bg-surface-card border border-border">
-              <p className="text-xs text-gray-500 font-body flex-1">
+              <p className="text-xs text-ink-dim font-body flex-1">
                 There are project folders on disk that aren't in the database. Scan to find and import them.
               </p>
               <button className="btn-secondary text-xs" onClick={handleScanOrphans}>
@@ -366,11 +367,11 @@ export default function Dashboard() {
           )}
 
           {scanning && (
-            <div className="text-center py-6 text-xs text-gray-500">Scanning project folders...</div>
+            <div className="text-center py-6 text-xs text-ink-dim">Scanning project folders...</div>
           )}
 
           {orphans !== null && orphans.length === 0 && !scanning && (
-            <div className="text-center py-6 text-xs text-gray-600">
+            <div className="text-center py-6 text-xs text-ink-faint">
               No orphaned projects found. All projects are indexed.
             </div>
           )}
@@ -383,16 +384,16 @@ export default function Dashboard() {
                   className="flex items-center gap-3 p-3 rounded-lg bg-surface-card border border-border"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground dark:text-white truncate">{o.title}</p>
+                    <p className="text-sm font-medium text-ink truncate">{o.title}</p>
                     <div className="flex items-center gap-3 mt-1">
-                      <span className="text-[11px] text-gray-600 font-mono">{o.id}</span>
-                      <span className={`text-[11px] ${o.has_video ? "text-green-400" : "text-gray-700"}`}>
+                      <span className="text-[11px] text-ink-faint font-mono">{o.id}</span>
+                      <span className={`text-[11px] ${o.has_video ? "text-ok" : "text-ink-faint"}`}>
                         {o.has_video ? "video" : "no video"}
                       </span>
-                      <span className={`text-[11px] ${o.has_audio ? "text-green-400" : "text-gray-700"}`}>
+                      <span className={`text-[11px] ${o.has_audio ? "text-ok" : "text-ink-faint"}`}>
                         {o.has_audio ? "audio" : "no audio"}
                       </span>
-                      <span className={`text-[11px] ${o.has_images ? "text-green-400" : "text-gray-700"}`}>
+                      <span className={`text-[11px] ${o.has_images ? "text-ok" : "text-ink-faint"}`}>
                         {o.has_images ? "images" : "no images"}
                       </span>
                     </div>
@@ -418,7 +419,7 @@ export default function Dashboard() {
       <Modal open={showCreateProject} onClose={() => setShowCreateProject(false)} title="New Project">
         <div className="flex flex-col gap-4">
           <div>
-            <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">Channel</label>
+            <label className="text-xs text-ink-dim font-medium block mb-1.5 font-sans">Channel</label>
             <select className="input" value={activeChannel ?? ""} disabled={channels.length <= 1}>
               {channels.map((ch) => (
                 <option key={ch.id} value={ch.id}>{ch.name}</option>
@@ -426,7 +427,7 @@ export default function Dashboard() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">Project Topic *</label>
+            <label className="text-xs text-ink-dim font-medium block mb-1.5 font-sans">Project Topic *</label>
             <input
               className="input"
               placeholder="e.g. Libra, Aries, Meditacion"
@@ -436,13 +437,13 @@ export default function Dashboard() {
               onKeyDown={(e) => { if (e.key === "Enter") handleCreateProject() }}
             />
             {newProjectName && (
-              <p className="text-xs text-gray-600 mt-1.5 font-mono">
+              <p className="text-xs text-ink-faint mt-1.5 font-mono">
                 Will create: <span className="text-accent">{newProjectName}</span>
               </p>
             )}
           </div>
           <div>
-            <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">Display Title (optional)</label>
+            <label className="text-xs text-ink-dim font-medium block mb-1.5 font-sans">Display Title (optional)</label>
             <input
               className="input"
               placeholder="e.g. Horóscopo Libra Junio 2026"
@@ -466,16 +467,16 @@ export default function Dashboard() {
         onClose={() => setShowDeleteChannel(null)}
         title="Delete Channel"
       >
-        <p className="text-sm text-gray-300 mb-2">
-          Are you sure you want to delete <strong className="text-foreground dark:text-white">{channels.find(c => c.id === showDeleteChannel)?.name}</strong>?
+        <p className="text-sm text-ink-dim mb-2">
+          Are you sure you want to delete <strong className="text-ink text-ink">{channels.find(c => c.id === showDeleteChannel)?.name}</strong>?
         </p>
-        <p className="text-xs text-gray-600 mb-6">
+        <p className="text-xs text-ink-faint mb-6">
           This only removes the channel from the database. Project folders on disk will not be affected.
         </p>
         <div className="flex justify-end gap-2">
           <button className="btn-secondary" onClick={() => setShowDeleteChannel(null)}>Cancel</button>
           <button
-            className="btn-primary !bg-red-600 !border-red-600 hover:!bg-red-700"
+            className="btn-primary !bg-danger !border-danger hover:!bg-danger"
             onClick={() => showDeleteChannel && handleDeleteChannel(showDeleteChannel)}
           >
             <Trash2 className="w-4 h-4" /> Delete
@@ -487,7 +488,7 @@ export default function Dashboard() {
       <Modal open={showCreateChannel} onClose={() => setShowCreateChannel(false)} title="New Channel">
         <div className="flex flex-col gap-4">
           <div>
-            <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">Channel Name *</label>
+            <label className="text-xs text-ink-dim font-medium block mb-1.5 font-sans">Channel Name *</label>
             <input
               className="input"
               placeholder="e.g. My YouTube Channel"
@@ -498,7 +499,7 @@ export default function Dashboard() {
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">Projects Folder *</label>
+            <label className="text-xs text-ink-dim font-medium block mb-1.5 font-sans">Projects Folder *</label>
             <input
               className="input font-mono text-xs"
               placeholder="e.g. C:\Users\...\Youtube\canal"

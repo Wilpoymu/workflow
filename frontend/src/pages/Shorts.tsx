@@ -62,35 +62,35 @@ function formatTime(sec: number): string {
 }
 
 function scoreColor(score: number): string {
-  if (score >= 8) return "text-green-400"
-  if (score >= 6) return "text-yellow-400"
-  return "text-red-400"
+  if (score >= 8) return "text-ok"
+  if (score >= 6) return "text-warn"
+  return "text-danger"
 }
 
 function scoreBg(score: number): string {
-  if (score >= 8) return "bg-green-500/10 border-green-500/20"
-  if (score >= 6) return "bg-yellow-500/10 border-yellow-500/20"
-  return "bg-red-500/10 border-red-500/20"
+  if (score >= 8) return "bg-ok/10 border-ok/20"
+  if (score >= 6) return "bg-warn/10 border-warn/20"
+  return "bg-danger/10 border-danger/20"
 }
 
 function hookColor(hook?: string): string {
-  if (hook === "alto") return "text-green-400 bg-green-500/10 border-green-500/20"
-  if (hook === "medio") return "text-yellow-400 bg-yellow-500/10 border-yellow-500/20"
-  return "text-red-400 bg-red-500/10 border-red-500/20"
+  if (hook === "alto") return "text-ok bg-ok/10 border-ok/20"
+  if (hook === "medio") return "text-warn bg-warn/10 border-warn/20"
+  return "text-danger bg-danger/10 border-danger/20"
 }
 
 function viralColor(viral?: string): string {
-  if (viral === "alto") return "text-rose-400 bg-rose-500/10 border-rose-500/20"
-  if (viral === "medio") return "text-orange-400 bg-orange-500/10 border-orange-500/20"
-  return "text-gray-400 bg-gray-500/10 border-gray-500/20"
+  if (viral === "alto") return "text-tag-pink bg-tag-pink/10 border-tag-pink/20"
+  if (viral === "medio") return "text-warn bg-warn/10 border-warn/20"
+  return "text-ink-dim bg-ink-faint/10 border-ink-faint/20"
 }
 
 const categoryColors: Record<string, string> = {
-  hook: "bg-purple-500/15 text-purple-400 border-purple-500/20",
-  "tema-clave": "bg-sky-500/15 text-sky-400 border-sky-500/20",
-  "frase-poderosa": "bg-amber-500/15 text-amber-400 border-amber-500/20",
-  manual: "bg-pink-500/15 text-pink-400 border-pink-500/20",
-  intro: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+  hook: "bg-tag-purple/15 text-tag-purple border-tag-purple/20",
+  "tema-clave": "bg-tag-blue/15 text-tag-blue border-tag-blue/20",
+  "frase-poderosa": "bg-warn/15 text-warn border-warn/20",
+  manual: "bg-tag-pink/15 text-tag-pink border-tag-pink/20",
+  intro: "bg-tag-blue/15 text-tag-blue border-tag-blue/20",
 }
 
 export default function Shorts() {
@@ -102,7 +102,7 @@ export default function Shorts() {
   const [status, setStatus] = useState<PageStatus>("idle")
   const [errorMessage, setErrorMessage] = useState("")
 
-  const [videoName, setVideoName] = useState("")
+  const [, setVideoName] = useState("")
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [showScriptSelector, setShowScriptSelector] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -359,14 +359,14 @@ export default function Shorts() {
         <div className="lg:col-span-2 space-y-6">
           {/* Analysis status bar */}
           {analysisGeneratedAt && (
-            <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-surface-hover/50 border border-border text-xs text-gray-500">
+            <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-surface-hover/50 border border-border text-xs text-ink-dim">
               <Clock className="w-3.5 h-3.5" />
               <span>Análisis {analysisCached ? "en caché" : "generado"}: {formatDate(analysisGeneratedAt)}</span>
-              <span className="text-gray-700">·</span>
+              <span className="text-ink-faint">·</span>
               <span className="font-mono text-accent">Modo: {analysisMode === "ai" ? "AI" : analysisMode === "combined" ? "AI+Reglas" : "Reglas"}</span>
               {analysisCached && (
                 <>
-                  <span className="text-gray-700">·</span>
+                  <span className="text-ink-faint">·</span>
                   <button onClick={() => handleAnalyze(true)}
                     className="text-accent hover:text-accent-light transition-colors flex items-center gap-1">
                     <RefreshCw className="w-3 h-3" /> Re-analizar
@@ -379,17 +379,16 @@ export default function Shorts() {
           {/* Segments */}
           <Card>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">Segmentos</h3>
+              <h3 className="text-sm font-semibold text-ink font-sans">Segmentos</h3>
               {suggestions.length > 0 && (
-                <span className="text-xs text-gray-500 font-mono">{suggestions.length} encontrados</span>
-              )}
+                <span className="text-xs text-ink-dim font-mono">{suggestions.length} encontrados</span>
               )}
             </div>
 
             {status === "idle" && !analysisCached && (
               <div className="text-center py-10">
-                <Scissors className="w-12 h-12 text-gray-800 mx-auto mb-3" />
-                <p className="text-sm text-gray-500 font-body mb-4">
+                <Scissors className="w-12 h-12 text-ink-faint mx-auto mb-3" />
+                <p className="text-sm text-ink-dim font-body mb-4">
                   Analiza tu video para encontrar los mejores segmentos para Shorts
                 </p>
                 <button className="btn-primary" onClick={() => handleAnalyze(false)}>
@@ -401,24 +400,24 @@ export default function Shorts() {
             {status === "analyzing" && (
               <div className="text-center py-10">
                 <Loader2 className="w-10 h-10 text-accent animate-spin mx-auto mb-3" />
-                <p className="text-sm text-gray-400 font-body">Analizando video con IA...</p>
+                <p className="text-sm text-ink-dim font-body">Analizando video con IA...</p>
               </div>
             )}
 
             {suggestions.length > 0 && (status === "ready" || status === "rendering" || status === "failed") && (
               <>
                 <div className="flex items-center gap-3 mb-3">
-                  <button className="text-xs text-gray-500 hover:text-accent transition-colors"
+                  <button className="text-xs text-ink-dim hover:text-accent transition-colors"
                     onClick={selectAll} disabled={status === "rendering"}>
                     Seleccionar Todos
                   </button>
-                  <span className="text-gray-700">·</span>
-                  <button className="text-xs text-gray-500 hover:text-accent transition-colors"
+                  <span className="text-ink-faint">·</span>
+                  <button className="text-xs text-ink-dim hover:text-accent transition-colors"
                     onClick={deselectAll} disabled={status === "rendering"}>
                     Deseleccionar
                   </button>
-                  <span className="text-gray-700">·</span>
-                  <span className="text-xs text-gray-600">{selected.size}/{suggestions.length} seleccionados</span>
+                  <span className="text-ink-faint">·</span>
+                  <span className="text-xs text-ink-faint">{selected.size}/{suggestions.length} seleccionados</span>
                   <Link to={`/metadata/shorts/${projectId}`}
                     className="text-xs text-accent hover:text-accent-light transition-colors ml-auto flex items-center gap-1">
                     <Sparkles className="w-3 h-3" /> Metadata
@@ -461,14 +460,14 @@ export default function Shorts() {
                               <span className="text-xs font-mono text-accent font-medium">
                                 {formatTime(seg.start_sec)} → {formatTime(seg.end_sec)}
                               </span>
-                              <span className="text-xs font-mono text-gray-600">{seg.duration.toFixed(0)}s</span>
+                              <span className="text-xs font-mono text-ink-faint">{seg.duration.toFixed(0)}s</span>
 
                               {isAi ? (
-                                <span className="text-[11px] px-2 py-0.5 rounded-full border font-medium bg-teal-500/15 text-teal-400 border-teal-500/20">
+                                <span className="text-[11px] px-2 py-0.5 rounded-full border font-medium bg-teal/15 text-teal border-teal/20">
                                   {aiCategory || "General"}
                                 </span>
                               ) : (
-                                <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${categoryColors[seg.reason] || "bg-gray-800 text-gray-300 border-border"}`}>
+                                <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${categoryColors[seg.reason] || "bg-surface-elevated text-ink-dim border-border"}`}>
                                   {seg.reason}
                                 </span>
                               )}
@@ -488,13 +487,13 @@ export default function Shorts() {
                             {/* Reason + metadata button */}
                             <div className="flex items-center gap-2">
                               {isAi && (
-                                <span className="text-[11px] text-gray-500 italic truncate">
+                                <span className="text-[11px] text-ink-dim italic truncate">
                                   {seg.reason.split("|").slice(1).join("|") || ""}
                                 </span>
                               )}
                               <button onClick={(e) => { e.preventDefault(); handleGenerateShortMetadata(seg.index, seg.text_preview) }}
                                 disabled={metadataLoading === seg.index}
-                                className="text-[11px] px-2 py-0.5 rounded-full border border-border text-gray-500 hover:text-accent hover:border-accent/30 transition-colors flex items-center gap-1 ml-auto shrink-0">
+                                className="text-[11px] px-2 py-0.5 rounded-full border border-border text-ink-dim hover:text-accent hover:border-accent/30 transition-colors flex items-center gap-1 ml-auto shrink-0">
                                 {metadataLoading === seg.index ? (
                                   <Loader2 className="w-3 h-3 animate-spin" />
                                 ) : (
@@ -509,7 +508,7 @@ export default function Shorts() {
                         {/* Text preview */}
                         <div className="px-3 pb-3">
                           <div className="ml-[3.25rem]">
-                            <p className={`text-sm text-gray-400 font-body cursor-pointer ${
+                            <p className={`text-sm text-ink-dim font-body cursor-pointer ${
                               isExpanded || !isLong ? "" : "line-clamp-2"
                             }`} onClick={() => toggleExpanded(seg.index)}>
                               {seg.text_preview}
@@ -531,9 +530,9 @@ export default function Shorts() {
 
             {status === "failed" && suggestions.length === 0 && errorMessage && (
               <div className="text-center py-10">
-                <AlertCircle className="w-10 h-10 text-red-500/40 mx-auto mb-3" />
-                <p className="text-sm text-red-400 font-body mb-2">Análisis falló</p>
-                <p className="text-xs text-gray-500 font-mono mb-4">{errorMessage}</p>
+                <AlertCircle className="w-10 h-10 text-danger/40 mx-auto mb-3" />
+                <p className="text-sm text-danger font-body mb-2">Análisis falló</p>
+                <p className="text-xs text-ink-dim font-mono mb-4">{errorMessage}</p>
                 <button className="btn-primary" onClick={() => handleAnalyze(false)}>
                   <Scissors className="w-4 h-4" /> Reintentar
                 </button>
@@ -544,27 +543,27 @@ export default function Shorts() {
           {/* Progress */}
           {(status === "rendering" || status === "done" || status === "failed") && renderResults.length > 0 && (
             <Card>
-              <h3 className="text-sm font-semibold text-foreground dark:text-white mb-4 font-sans">Progreso</h3>
+              <h3 className="text-sm font-semibold text-ink mb-4 font-sans">Progreso</h3>
               <ProgressBar progress={progress} />
-              {progressMessage && <p className="text-xs text-gray-500 mt-2 font-mono">{progressMessage}</p>}
+              {progressMessage && <p className="text-xs text-ink-dim mt-2 font-mono">{progressMessage}</p>}
               <div className="mt-4 space-y-2">
                 {renderResults.map((r) => (
                   <div key={r.index} className="flex items-center justify-between py-2 px-3 rounded-lg bg-surface-hover/50">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono text-gray-400">#{r.index}</span>
-                      {r.filename && <span className="text-xs text-gray-300 truncate max-w-[200px]">{r.filename}</span>}
+                      <span className="text-xs font-mono text-ink-dim">#{r.index}</span>
+                      {r.filename && <span className="text-xs text-ink-dim truncate max-w-[200px]">{r.filename}</span>}
                     </div>
                     <div className="flex items-center gap-2">
                       {r.success ? (
-                        <span className="flex items-center gap-1 text-xs text-green-400">
+                        <span className="flex items-center gap-1 text-xs text-ok">
                           <CheckCircle className="w-3.5 h-3.5" /> Hecho
                         </span>
                       ) : !r.success && r.error ? (
-                        <span className="flex items-center gap-1 text-xs text-red-400" title={r.error}>
+                        <span className="flex items-center gap-1 text-xs text-danger" title={r.error}>
                           <XCircle className="w-3.5 h-3.5" /> Falló
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-600">Pendiente</span>
+                        <span className="text-xs text-ink-faint">Pendiente</span>
                       )}
                     </div>
                   </div>
@@ -578,22 +577,22 @@ export default function Shorts() {
         <div className="space-y-4">
           {/* Settings */}
           <Card>
-            <h3 className="text-sm font-semibold text-foreground dark:text-white mb-4 font-sans">Configuración</h3>
+            <h3 className="text-sm font-semibold text-ink mb-4 font-sans">Configuración</h3>
             <div className="space-y-4">
               <div>
-                <label className="text-sm text-gray-300 block mb-2">Modo de Análisis</label>
+                <label className="text-sm text-ink-dim block mb-2">Modo de Análisis</label>
                 <div className="flex gap-1 bg-surface-hover rounded-lg p-1">
                   {(["ai", "combined", "rules"] as const).map((m) => (
                     <button key={m} onClick={() => setAnalysisMode(m)}
                       disabled={status === "analyzing" || status === "rendering"}
                       className={`flex-1 text-xs py-1.5 px-2 rounded-md font-medium transition-all ${
-                        analysisMode === m ? "bg-accent text-black shadow-sm" : "text-gray-400 hover:text-gray-200"
+                        analysisMode === m ? "bg-accent text-ink shadow-sm" : "text-ink-dim hover:text-ink"
                       }`}>
                       {m === "ai" ? "AI" : m === "combined" ? "AI+Reglas" : "Reglas"}
                     </button>
                   ))}
                 </div>
-                <p className="text-[11px] text-gray-600 mt-1.5">
+                <p className="text-[11px] text-ink-faint mt-1.5">
                   {analysisMode === "ai" && "IA lee el texto completo y genera segmentos temáticos. Agnóstico."}
                   {analysisMode === "combined" && "Segmentos por reglas + puntuación de IA."}
                   {analysisMode === "rules" && "Solo reglas clásicas (keywords, hooks)."}
@@ -601,7 +600,7 @@ export default function Shorts() {
               </div>
 
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-sm text-gray-300">Subtítulos</span>
+                <span className="text-sm text-ink-dim">Subtítulos</span>
                 <input type="checkbox" className="w-4 h-4 rounded border-border bg-surface-hover text-accent focus:ring-accent"
                   checked={withSubtitles} onChange={(e) => setWithSubtitles(e.target.checked)}
                   disabled={status === "rendering"} />
@@ -609,14 +608,14 @@ export default function Shorts() {
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-sm text-gray-300">Tamaño fuente</span>
+                  <span className="text-sm text-ink-dim">Tamaño fuente</span>
                   <span className="text-xs font-mono text-accent">{fontSize}px</span>
                 </div>
                 <input type="range" min="36" max="72" value={fontSize}
                   onChange={(e) => setFontSize(parseInt(e.target.value))}
                   disabled={status === "rendering"}
                   className="w-full h-2 bg-surface-hover rounded-lg appearance-none cursor-pointer"
-                  style={{ accentColor: "#2dd4bf" }} />
+                  style={{ accentColor: "rgb(255 180 84)" }} />
               </div>
             </div>
 
@@ -630,7 +629,7 @@ export default function Shorts() {
                 )}
               </button>
               {selected.size === 0 && status === "ready" && (
-                <p className="text-xs text-gray-600 text-center mt-2">Selecciona al menos un segmento</p>
+                <p className="text-xs text-ink-faint text-center mt-2">Selecciona al menos un segmento</p>
               )}
             </div>
           </Card>
@@ -638,26 +637,26 @@ export default function Shorts() {
           {/* Quick Stats */}
           {suggestions.length > 0 && (
             <Card>
-              <h3 className="text-sm font-semibold text-white mb-3 font-sans">Resumen</h3>
+              <h3 className="text-sm font-semibold text-ink mb-3 font-sans">Resumen</h3>
               <div className="space-y-2">
                 <div className="flex justify-between text-xs">
-                  <span className="text-gray-500">Segmentos</span>
-                  <span className="text-gray-300 font-mono">{suggestions.length}</span>
+                  <span className="text-ink-dim">Segmentos</span>
+                  <span className="text-ink-dim font-mono">{suggestions.length}</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-gray-500">Seleccionados</span>
+                  <span className="text-ink-dim">Seleccionados</span>
                   <span className="text-accent font-mono">{selected.size}</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-gray-500">Duración total</span>
-                  <span className="text-gray-300 font-mono">
+                  <span className="text-ink-dim">Duración total</span>
+                  <span className="text-ink-dim font-mono">
                     {suggestions.reduce((a, s) => a + s.duration, 0).toFixed(0)}s
                   </span>
                 </div>
                 {downloads.length > 0 && (
                   <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Shorts render</span>
-                    <span className="text-green-400 font-mono">{downloads.length}</span>
+                    <span className="text-ink-dim">Shorts render</span>
+                    <span className="text-ok font-mono">{downloads.length}</span>
                   </div>
                 )}
               </div>
@@ -666,9 +665,9 @@ export default function Shorts() {
 
           {/* Downloads */}
           <Card>
-            <h3 className="text-sm font-semibold text-foreground dark:text-white mb-4 font-sans">Descargas</h3>
+            <h3 className="text-sm font-semibold text-ink mb-4 font-sans">Descargas</h3>
             {downloads.length === 0 ? (
-              <p className="text-xs text-gray-600 text-center py-6 font-body">
+              <p className="text-xs text-ink-faint text-center py-6 font-body">
                 {status === "done" ? "Sin archivos" : "Los Shorts renderizados aparecerán aquí"}
               </p>
             ) : (
@@ -683,8 +682,8 @@ export default function Shorts() {
                   {downloads.map((f) => (
                     <div key={f.filename} className="flex items-center justify-between py-2 px-3 rounded-lg bg-surface-hover/50">
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs text-gray-300 font-mono truncate">{f.filename}</p>
-                        <p className="text-[11px] text-gray-600">{(f.size_bytes / 1024 / 1024).toFixed(1)} MB</p>
+                        <p className="text-xs text-ink-dim font-mono truncate">{f.filename}</p>
+                        <p className="text-[11px] text-ink-faint">{(f.size_bytes / 1024 / 1024).toFixed(1)} MB</p>
                       </div>
                       <a href={api.shortsDownloadUrl(projectId!, f.filename)} download
                         className="text-accent hover:text-accent-light transition-colors p-1">
@@ -700,13 +699,13 @@ export default function Shorts() {
           {/* Status */}
           <Card>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider font-sans">Estado</span>
+              <span className="text-xs font-semibold text-ink-dim uppercase tracking-wider font-sans">Estado</span>
               {status === "done" ? (
-                <span className="flex items-center gap-1.5 text-xs text-green-400 font-mono">
+                <span className="flex items-center gap-1.5 text-xs text-ok font-mono">
                   <CheckCircle className="w-3.5 h-3.5" /> Completo
                 </span>
               ) : status === "failed" ? (
-                <span className="flex items-center gap-1.5 text-xs text-red-400 font-mono">
+                <span className="flex items-center gap-1.5 text-xs text-danger font-mono">
                   <AlertCircle className="w-3.5 h-3.5" /> Falló
                 </span>
               ) : status === "rendering" ? (
@@ -718,11 +717,11 @@ export default function Shorts() {
                   <Loader2 className="w-3.5 h-3.5 animate-spin" /> Analizando
                 </span>
               ) : status === "ready" ? (
-                <span className="flex items-center gap-1.5 text-xs text-green-400 font-mono">
+                <span className="flex items-center gap-1.5 text-xs text-ok font-mono">
                   <Zap className="w-3.5 h-3.5" /> Listo
                 </span>
               ) : (
-                <span className="text-xs text-gray-500 font-mono">Inactivo</span>
+                <span className="text-xs text-ink-dim font-mono">Inactivo</span>
               )}
             </div>
           </Card>

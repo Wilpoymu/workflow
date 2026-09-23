@@ -17,15 +17,15 @@ interface TimelineClipProps {
 // "audio" → emerald-600, "subtitle" → amber-600
 
 const CLIP_BG: Record<ClipSourceType, string> = {
-  image:    "bg-blue-600/80 hover:bg-blue-600/90",
-  audio:    "bg-emerald-600/80 hover:bg-emerald-600/90",
-  subtitle: "bg-amber-600/80 hover:bg-amber-600/90",
+  image:    "bg-tag-blue/80 hover:bg-tag-blue/90",
+  audio:    "bg-ok/80 hover:bg-ok/90",
+  subtitle: "bg-warn/80 hover:bg-warn/90",
 }
 
 const CLIP_INNER_GRADIENT: Record<ClipSourceType, string> = {
-  image:    "bg-gradient-to-b from-white/[0.08] to-transparent",
-  audio:    "bg-gradient-to-b from-white/[0.08] to-transparent",
-  subtitle: "bg-gradient-to-b from-white/[0.08] to-transparent",
+  image:    "bg-gradient-to-b from-ink/[0.08] to-transparent",
+  audio:    "bg-gradient-to-b from-ink/[0.08] to-transparent",
+  subtitle: "bg-gradient-to-b from-ink/[0.08] to-transparent",
 }
 
 // ─── Component ──────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ export default function TimelineClip({
         absolute top-1 bottom-1 rounded cursor-grab active:cursor-grabbing overflow-hidden
         ${CLIP_BG[clip.source_type]}
         ${CLIP_INNER_GRADIENT[clip.source_type]}
-        ${isSelected ? "ring-2 ring-blue-400" : ""}
+        ${isSelected ? "ring-2 ring-tag-blue" : ""}
         transition-colors duration-75
       `}
       style={style}
@@ -71,13 +71,13 @@ export default function TimelineClip({
       }}
     >
       {/* ── Clip label ──────────────────────────────────────────── */}
-      <span className="absolute inset-x-1 top-1 text-[10px] text-white/90 truncate font-medium">
+      <span className="absolute inset-x-1 top-1 text-[10px] text-ink/90 truncate font-medium">
         {clip.source_type === "subtitle" && clip.text
           ? clip.text
           : `${clip.source_type} ${clip.id.replace("clip_", "#")}`}
       </span>
 
-      <span className="absolute inset-x-1 bottom-1 text-[9px] text-white/60 font-mono">
+      <span className="absolute inset-x-1 bottom-1 text-[9px] text-ink/60 font-mono">
         {clip.duration.toFixed(1)}s
       </span>
 

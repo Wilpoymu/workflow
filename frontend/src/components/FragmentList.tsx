@@ -21,7 +21,7 @@ export default function FragmentList({ fragments, selectedId, onSelect, onSave, 
 
   if (fragments.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-sm text-gray-600 font-body">
+      <div className="flex items-center justify-center h-full text-sm text-ink-faint font-body">
         No fragments yet
       </div>
     )
@@ -31,11 +31,11 @@ export default function FragmentList({ fragments, selectedId, onSelect, onSave, 
     <div className="flex gap-6 h-[calc(100vh-12rem)]">
       <div className="w-72 shrink-0 flex flex-col gap-2 overflow-y-auto pr-2">
         {/* Count header */}
-        <div className="flex items-center gap-2 px-1 pb-1 text-xs text-gray-500 border-b border-border mb-1">
-          <span className="text-green-400 font-medium">{withPrompt.length}</span>
-          <span className="text-gray-600">/ {fragments.length} have prompts</span>
+        <div className="flex items-center gap-2 px-1 pb-1 text-xs text-ink-dim border-b border-border mb-1">
+          <span className="text-ok font-medium">{withPrompt.length}</span>
+          <span className="text-ink-faint">/ {fragments.length} have prompts</span>
           {pending > 0 && (
-            <span className="text-yellow-500 ml-auto">{pending} pending</span>
+            <span className="text-warn ml-auto">{pending} pending</span>
           )}
         </div>
 
@@ -47,24 +47,24 @@ export default function FragmentList({ fragments, selectedId, onSelect, onSave, 
               onClick={() => onSelect(f.fragment_id)}
               className={`text-left p-3 rounded-lg border transition-all duration-150 ${
                 selectedId === f.fragment_id
-                  ? "border-accent/50 bg-accent/8 shadow-[inset_2px_0_0_#2dd4bf]"
+                  ? "border-accent/50 bg-accent/10 shadow-[inset_2px_0_0_#ffb454]"
                   : hasPrompt
-                    ? "border-green-500/30 bg-green-500/5 hover:border-green-500/50"
+                    ? "border-ok/30 bg-ok/5 hover:border-ok/50"
                     : "border-border bg-surface-card hover:border-accent/20"
               }`}
             >
               <span className="text-xs font-mono mb-1 block flex items-center gap-1.5">
                 {hasPrompt ? (
-                  <CheckCircle2 className="w-3 h-3 text-green-400 shrink-0" />
+                  <CheckCircle2 className="w-3 h-3 text-ok shrink-0" />
                 ) : (
-                  <Clock className="w-3 h-3 text-yellow-500 shrink-0" />
+                  <Clock className="w-3 h-3 text-warn shrink-0" />
                 )}
-                <span className="text-gray-500">#{f.fragment_id}</span>
+                <span className="text-ink-dim">#{f.fragment_id}</span>
                 {hasPrompt && (
-                  <Sparkles className="w-3 h-3 text-pink-400/60 ml-auto" />
+                  <Sparkles className="w-3 h-3 text-tag-pink/60 ml-auto" />
                 )}
               </span>
-              <p className="text-sm text-gray-300 line-clamp-2 font-body">
+              <p className="text-sm text-ink-dim line-clamp-2 font-body">
                 {f.original_text}
               </p>
             </button>
@@ -121,7 +121,7 @@ function FragmentEditor({
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
       <div className="card">
-        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block font-sans">
+        <label className="text-xs font-semibold text-ink-dim uppercase tracking-wider mb-2 block font-sans">
           Fragment Text
         </label>
         <textarea
@@ -132,18 +132,18 @@ function FragmentEditor({
       </div>
       <div className="card">
         <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider font-sans">
+          <label className="text-xs font-semibold text-ink-dim uppercase tracking-wider font-sans">
             Image Prompt
           </label>
           {fragment.image_prompt && fragment.image_prompt.trim() && (
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 text-[11px] text-green-500">
+              <span className="flex items-center gap-1 text-[11px] text-ok">
                 <CheckCircle2 className="w-3 h-3" />
                 Generated
               </span>
               {onRegeneratePrompt && (
                 <button
-                  className="flex items-center gap-1 text-[10px] text-gray-600 hover:text-accent transition-colors"
+                  className="flex items-center gap-1 text-[10px] text-ink-faint hover:text-accent transition-colors"
                   onClick={() => onRegeneratePrompt(fragment.fragment_id)}
                   disabled={generatingPrompts}
                   title="Regenerate this prompt"

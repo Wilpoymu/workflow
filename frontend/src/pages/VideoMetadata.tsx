@@ -77,7 +77,7 @@ function CopyBtn({ text, label }: { text: string; label: string }) {
     } catch { toast("Failed to copy", "error") }
   }
   return (
-    <button onClick={handleCopy} className="text-xs text-gray-500 hover:text-accent transition-colors flex items-center gap-1 shrink-0">
+    <button onClick={handleCopy} className="text-xs text-ink-dim hover:text-accent transition-colors flex items-center gap-1 shrink-0">
       {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
       {copied ? "Copied" : "Copy"}
     </button>
@@ -89,7 +89,7 @@ function SectionHeader({ title, icon, children }: { title: string; icon: React.R
     <div className="flex items-center justify-between mb-3 pb-2 border-b border-border">
       <div className="flex items-center gap-2">
         <span className="text-accent">{icon}</span>
-        <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">{title}</h3>
+        <h3 className="text-sm font-semibold text-ink font-sans">{title}</h3>
       </div>
       {children}
     </div>
@@ -107,14 +107,14 @@ function VariantCard({ variant, selected, onSelect }: { variant: TitleVariant; s
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[10px] font-mono text-gray-600 bg-surface-hover px-1.5 py-0.5 rounded">
+            <span className="text-[10px] font-mono text-ink-faint bg-surface-hover px-1.5 py-0.5 rounded">
               #{variant.variant}
             </span>
             <span className="text-[10px] font-mono text-accent">{variant.strategy}</span>
-            <span className="text-[10px] font-mono text-gray-600">keyword: {variant.target_keyword}</span>
+            <span className="text-[10px] font-mono text-ink-faint">keyword: {variant.target_keyword}</span>
           </div>
-          <p className="text-sm text-foreground dark:text-white font-body">{variant.title}</p>
-          <p className="text-[11px] text-gray-600 mt-0.5 font-mono">{variant.title.length} chars</p>
+          <p className="text-sm text-ink font-body">{variant.title}</p>
+          <p className="text-[11px] text-ink-faint mt-0.5 font-mono">{variant.title.length} chars</p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <CopyBtn text={variant.title} label={`Title #${variant.variant}`} />
@@ -125,12 +125,12 @@ function VariantCard({ variant, selected, onSelect }: { variant: TitleVariant; s
 }
 
 function TagCloud({ tags, icon }: { tags?: string[]; icon?: React.ReactNode }) {
-  if (!tags || tags.length === 0) return <p className="text-xs text-gray-600 py-2">No tags generated</p>
+  if (!tags || tags.length === 0) return <p className="text-xs text-ink-faint py-2">No tags generated</p>
   return (
     <div className="flex flex-wrap gap-1.5">
       {icon}
       {tags.map((t, i) => (
-        <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-surface-hover text-gray-300 border border-border font-mono">
+        <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-surface-hover text-ink-dim border border-border font-mono">
           {t.startsWith("#") ? t : `#${t}`}
         </span>
       ))}
@@ -289,7 +289,7 @@ export default function VideoMetadata() {
         <div className="lg:col-span-1 space-y-4">
           <Card>
             <SectionHeader title="Script" icon={<FileText />} />
-            <textarea className="w-full h-48 bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm text-gray-300 font-body placeholder:text-gray-700 focus:outline-none focus:border-accent resize-y"
+            <textarea className="w-full h-48 bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm text-ink-dim font-body placeholder:text-ink-faint focus:outline-none focus:border-accent resize-y"
               value={text} onChange={(e) => setText(e.target.value)}
               placeholder="Script text loaded automatically. Edit if needed..." />
           </Card>
@@ -298,14 +298,14 @@ export default function VideoMetadata() {
             <Card>
               <SectionHeader title="SEO Summary" icon={<Target />} />
               <div className="space-y-2 text-xs">
-                <div className="flex justify-between"><span className="text-gray-500">Title variants</span><span className="text-foreground dark:text-white font-mono">{metadata.title_variants?.length ?? 0}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Chapters</span><span className="text-foreground dark:text-white font-mono">{metadata.description?.chapters?.length ?? 0}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Tags</span><span className="text-foreground dark:text-white font-mono">{metadata.tags?.length ?? 0}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Hashtags</span><span className="text-foreground dark:text-white font-mono">{metadata.hashtags?.length ?? 0}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Category</span><span className="text-foreground dark:text-white font-mono truncate max-w-[140px]">{metadata.category ?? "—"}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Text length</span><span className="text-foreground dark:text-white font-mono">{metadata.generated_from_length ?? 0} chars</span></div>
+                <div className="flex justify-between"><span className="text-ink-dim">Title variants</span><span className="text-ink text-ink font-mono">{metadata.title_variants?.length ?? 0}</span></div>
+                <div className="flex justify-between"><span className="text-ink-dim">Chapters</span><span className="text-ink text-ink font-mono">{metadata.description?.chapters?.length ?? 0}</span></div>
+                <div className="flex justify-between"><span className="text-ink-dim">Tags</span><span className="text-ink text-ink font-mono">{metadata.tags?.length ?? 0}</span></div>
+                <div className="flex justify-between"><span className="text-ink-dim">Hashtags</span><span className="text-ink text-ink font-mono">{metadata.hashtags?.length ?? 0}</span></div>
+                <div className="flex justify-between"><span className="text-ink-dim">Category</span><span className="text-ink text-ink font-mono truncate max-w-[140px]">{metadata.category ?? "—"}</span></div>
+                <div className="flex justify-between"><span className="text-ink-dim">Text length</span><span className="text-ink text-ink font-mono">{metadata.generated_from_length ?? 0} chars</span></div>
                 {metadata.generated_at && (
-                  <div className="flex justify-between"><span className="text-gray-500">Generated</span><span className="text-foreground dark:text-white font-mono text-[10px]">{new Date(metadata.generated_at).toLocaleString()}</span></div>
+                  <div className="flex justify-between"><span className="text-ink-dim">Generated</span><span className="text-ink text-ink font-mono text-[10px]">{new Date(metadata.generated_at).toLocaleString()}</span></div>
                 )}
               </div>
             </Card>
@@ -317,9 +317,9 @@ export default function VideoMetadata() {
           {!metadata && !loading && (
             <Card>
               <div className="text-center py-12">
-                <Sparkles className="w-14 h-14 text-gray-800 mx-auto mb-3" />
-                <p className="text-sm text-gray-500 font-body mb-2">No metadata generated yet</p>
-                <p className="text-xs text-gray-700 font-body">Click "Generate" to create SEO-optimized metadata for your video using Gemini Web</p>
+                <Sparkles className="w-14 h-14 text-ink-faint mx-auto mb-3" />
+                <p className="text-sm text-ink-dim font-body mb-2">No metadata generated yet</p>
+                <p className="text-xs text-ink-faint font-body">Click "Generate" to create SEO-optimized metadata for your video using Gemini Web</p>
               </div>
             </Card>
           )}
@@ -328,8 +328,8 @@ export default function VideoMetadata() {
             <Card>
               <div className="text-center py-12">
                 <RefreshCw className="w-10 h-10 text-accent animate-spin mx-auto mb-3" />
-                <p className="text-sm text-gray-400 font-body">Generating metadata with Gemini Web...</p>
-                <p className="text-xs text-gray-700 mt-2">This may take 20-30 seconds</p>
+                <p className="text-sm text-ink-dim font-body">Generating metadata with Gemini Web...</p>
+                <p className="text-xs text-ink-faint mt-2">This may take 20-30 seconds</p>
               </div>
             </Card>
           )}
@@ -371,30 +371,30 @@ export default function VideoMetadata() {
                 {metadata.description && (
                   <div className="space-y-3">
                     <div className="bg-surface-hover rounded-lg p-3 border border-border">
-                      <p className="text-xs text-gray-500 mb-1 font-semibold">Primary Hook</p>
-                      <p className="text-sm text-foreground dark:text-white font-body">{metadata.description.primary}</p>
+                      <p className="text-xs text-ink-dim mb-1 font-semibold">Primary Hook</p>
+                      <p className="text-sm text-ink font-body">{metadata.description.primary}</p>
                     </div>
                     <div className="bg-surface-hover rounded-lg p-3 border border-border">
-                      <p className="text-xs text-gray-500 mb-1 font-semibold">Body</p>
-                      <p className="text-sm text-gray-300 font-body whitespace-pre-wrap">{metadata.description.body}</p>
+                      <p className="text-xs text-ink-dim mb-1 font-semibold">Body</p>
+                      <p className="text-sm text-ink-dim font-body whitespace-pre-wrap">{metadata.description.body}</p>
                     </div>
                     <div className="bg-surface-hover rounded-lg p-3 border border-border">
-                      <p className="text-xs text-gray-500 mb-1 font-semibold">Call to Action</p>
+                      <p className="text-xs text-ink-dim mb-1 font-semibold">Call to Action</p>
                       <p className="text-sm text-accent font-body">{metadata.description.cta}</p>
                     </div>
                     {metadata.description.links_suggestion && (
                       <div className="bg-surface-hover rounded-lg p-3 border border-border">
-                        <p className="text-xs text-gray-500 mb-1 font-semibold">Links Suggestion</p>
-                        <p className="text-sm text-gray-300 font-body">{metadata.description.links_suggestion}</p>
+                        <p className="text-xs text-ink-dim mb-1 font-semibold">Links Suggestion</p>
+                        <p className="text-sm text-ink-dim font-body">{metadata.description.links_suggestion}</p>
                       </div>
                     )}
                     {metadata.description.chapters && metadata.description.chapters.length > 0 && (
                       <div className="bg-surface-hover rounded-lg p-3 border border-border">
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs text-gray-500 font-semibold">Chapters ({metadata.description.chapters.length})</p>
+                          <p className="text-xs text-ink-dim font-semibold">Chapters ({metadata.description.chapters.length})</p>
                           <div className="flex items-center gap-2">
                             <button onClick={handleValidateChapters} disabled={validating}
-                              className="text-xs text-gray-500 hover:text-accent transition-colors flex items-center gap-1">
+                              className="text-xs text-ink-dim hover:text-accent transition-colors flex items-center gap-1">
                               <RefreshCw className={`w-3 h-3 ${validating ? "animate-spin" : ""}`} />
                               {validating ? "Validating..." : "Validate timestamps"}
                             </button>
@@ -405,7 +405,7 @@ export default function VideoMetadata() {
                           {metadata.description.chapters.map((c, i) => (
                             <div key={i} className="flex items-center gap-3 text-sm">
                               <span className="font-mono text-accent text-xs shrink-0 w-12">{c.timestamp}</span>
-                              <span className="text-gray-300">{c.title}</span>
+                              <span className="text-ink-dim">{c.title}</span>
                             </div>
                           ))}
                         </div>
@@ -435,7 +435,7 @@ export default function VideoMetadata() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card>
                   <SectionHeader title="Category" icon={<PlaySquare />} />
-                  <p className="text-sm text-foreground dark:text-white font-body bg-surface-hover rounded-lg px-3 py-2 border border-border">{metadata.category ?? "—"}</p>
+                  <p className="text-sm text-ink font-body bg-surface-hover rounded-lg px-3 py-2 border border-border">{metadata.category ?? "—"}</p>
                 </Card>
                 <Card>
                   <SectionHeader title="Thumbnail Text" icon={<ImageIcon />}>
@@ -444,8 +444,8 @@ export default function VideoMetadata() {
                   <div className="space-y-2">
                     {(metadata.thumbnail_text_overlays ?? []).map((o, i) => (
                       <div key={i} className="bg-surface-hover rounded-lg px-3 py-2 border border-border">
-                        <p className="text-sm text-foreground dark:text-white font-body">{o.text}</p>
-                        <p className="text-[10px] text-gray-600 mt-0.5 font-mono">{o.style}</p>
+                        <p className="text-sm text-ink font-body">{o.text}</p>
+                        <p className="text-[10px] text-ink-faint mt-0.5 font-mono">{o.style}</p>
                       </div>
                     ))}
                   </div>
@@ -456,13 +456,13 @@ export default function VideoMetadata() {
                     {(metadata.seo_keywords ?? []).map((k, i) => (
                       <div key={i} className="flex items-center justify-between bg-surface-hover rounded px-2 py-1.5 border border-border">
                         <div className="min-w-0">
-                          <p className="text-xs text-foreground dark:text-white font-mono truncate">{k.keyword}</p>
-                          <p className="text-[10px] text-gray-600">{k.type}</p>
+                          <p className="text-xs text-ink font-mono truncate">{k.keyword}</p>
+                          <p className="text-[10px] text-ink-faint">{k.type}</p>
                         </div>
                         <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                          k.volume === "alto" ? "bg-green-500/10 text-green-400" :
-                          k.volume === "medio" ? "bg-amber-500/10 text-amber-400" :
-                          "bg-gray-500/10 text-gray-400"
+                          k.volume === "alto" ? "bg-ok/10 text-ok" :
+                          k.volume === "medio" ? "bg-warn/10 text-warn" :
+                          "bg-ink-faint/10 text-ink-dim"
                         }`}>{k.volume}</span>
                       </div>
                     ))}
@@ -476,24 +476,24 @@ export default function VideoMetadata() {
                   <SectionHeader title="Target Audience" icon={<Users />} />
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="bg-surface-hover rounded-lg p-3 border border-border">
-                      <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-1">Age Range</p>
-                      <p className="text-sm text-foreground dark:text-white font-mono">{metadata.target_audience.age_range}</p>
+                      <p className="text-[10px] text-ink-dim uppercase tracking-wider font-semibold mb-1">Age Range</p>
+                      <p className="text-sm text-ink font-mono">{metadata.target_audience.age_range}</p>
                     </div>
                     <div className="bg-surface-hover rounded-lg p-3 border border-border">
-                      <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-1">Interests</p>
+                      <p className="text-[10px] text-ink-dim uppercase tracking-wider font-semibold mb-1">Interests</p>
                       <div className="flex flex-wrap gap-1">{metadata.target_audience.interests.map((i, j) => (
                         <span key={j} className="text-xs px-1.5 py-0.5 rounded bg-accent/10 text-accent">{i}</span>
                       ))}</div>
                     </div>
                     <div className="bg-surface-hover rounded-lg p-3 border border-border">
-                      <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-1">Pain Points</p>
+                      <p className="text-[10px] text-ink-dim uppercase tracking-wider font-semibold mb-1">Pain Points</p>
                       <div className="flex flex-wrap gap-1">{metadata.target_audience.pain_points.map((p, j) => (
-                        <span key={j} className="text-xs px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">{p}</span>
+                        <span key={j} className="text-xs px-1.5 py-0.5 rounded bg-danger/10 text-danger">{p}</span>
                       ))}</div>
                     </div>
                     <div className="bg-surface-hover rounded-lg p-3 border border-border">
-                      <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-1">Value Prop</p>
-                      <p className="text-xs text-gray-300">{metadata.target_audience.value_proposition}</p>
+                      <p className="text-[10px] text-ink-dim uppercase tracking-wider font-semibold mb-1">Value Prop</p>
+                      <p className="text-xs text-ink-dim">{metadata.target_audience.value_proposition}</p>
                     </div>
                   </div>
                 </Card>
@@ -507,7 +507,7 @@ export default function VideoMetadata() {
                   </SectionHeader>
                   <ul className="space-y-1">
                     {(metadata.end_screen_suggestions ?? []).map((s, i) => (
-                      <li key={i} className="text-sm text-gray-300 font-body flex items-center gap-2">
+                      <li key={i} className="text-sm text-ink-dim font-body flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-accent/50 shrink-0" />
                         {s}
                       </li>
@@ -520,7 +520,7 @@ export default function VideoMetadata() {
                   </SectionHeader>
                   <ul className="space-y-1">
                     {(metadata.cards_suggestions ?? []).map((s, i) => (
-                      <li key={i} className="text-sm text-gray-300 font-body flex items-center gap-2">
+                      <li key={i} className="text-sm text-ink-dim font-body flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-accent/50 shrink-0" />
                         {s}
                       </li>
@@ -535,9 +535,9 @@ export default function VideoMetadata() {
           {metadata && editing && editData && (
             <Card>
               <SectionHeader title="Editing" icon={<Edit3 />} />
-              <p className="text-xs text-gray-500 mb-4">Edit the JSON directly. Be careful with the structure.</p>
+              <p className="text-xs text-ink-dim mb-4">Edit the JSON directly. Be careful with the structure.</p>
               <textarea
-                className="w-full h-96 bg-surface-hover border border-border rounded-lg px-3 py-2 text-xs text-gray-300 font-mono focus:outline-none focus:border-accent resize-y"
+                className="w-full h-96 max-h-[36rem] [field-sizing:content] bg-surface-hover border border-border rounded-lg px-3 py-2 text-xs text-ink-dim font-mono focus:outline-none focus:border-accent resize-y"
                 value={JSON.stringify(editData, null, 2)}
                 onChange={(e) => {
                   try { setEditData(JSON.parse(e.target.value)) } catch {}

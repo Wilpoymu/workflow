@@ -277,7 +277,7 @@ export default function Images() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-accent" />
-            <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">
+            <h3 className="text-sm font-semibold text-ink font-sans">
               Connected Accounts
             </h3>
             <Badge variant={connectedAccounts.length > 0 ? "success" : "default"}>
@@ -285,7 +285,7 @@ export default function Images() {
             </Badge>
           </div>
           <button
-            className="text-xs text-gray-500 hover:text-accent flex items-center gap-1"
+            className="text-xs text-ink-dim hover:text-accent flex items-center gap-1"
             onClick={loadAccounts}
           >
             <RefreshCw className="w-3 h-3" />
@@ -294,7 +294,7 @@ export default function Images() {
         </div>
 
         {connectedAccounts.length === 0 ? (
-          <div className="text-center py-4 text-gray-500 text-sm">
+          <div className="text-center py-4 text-ink-dim text-sm">
             No accounts connected. Open the Chrome extension on Flow to connect.
           </div>
         ) : (
@@ -314,14 +314,14 @@ export default function Images() {
                   onChange={() => toggleAccount(account.hash)}
                   className="w-4 h-4 rounded border-border text-accent focus:ring-accent"
                 />
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-purple-500 flex items-center justify-center text-white text-sm font-bold">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-tag-purple flex items-center justify-center text-ink text-sm font-bold">
                   {account.email[0].toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground dark:text-white truncate">{account.email}</p>
-                  <p className="text-xs text-gray-500 font-mono">{account.hash.slice(0, 12)}...</p>
+                  <p className="text-sm text-ink truncate">{account.email}</p>
+                  <p className="text-xs text-ink-dim font-mono">{account.hash.slice(0, 12)}...</p>
                 </div>
-                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                <div className="w-2 h-2 rounded-full bg-ok animate-pulse" />
               </label>
             ))}
           </div>
@@ -333,7 +333,7 @@ export default function Images() {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-accent" />
-                <span className="text-sm text-gray-400">Prompts per account:</span>
+                <span className="text-sm text-ink-dim">Prompts per account:</span>
               </div>
               <input
                 type="range"
@@ -342,13 +342,13 @@ export default function Images() {
                 value={concurrency.toString()}
                 onChange={(e) => setConcurrency(parseInt(e.target.value))}
                 className="flex-1 h-2 bg-surface-hover rounded-lg appearance-none cursor-pointer"
-                style={{ accentColor: "#2dd4bf" }}
+                style={{ accentColor: "rgb(255 180 84)" }}
               />
-              <span className="text-sm font-mono text-foreground dark:text-white w-8 text-center">
+              <span className="text-sm font-mono text-ink w-8 text-center">
                 {concurrency}
               </span>
             </div>
-            <p className="text-xs text-gray-600 mt-2">
+            <p className="text-xs text-ink-faint mt-2">
               {connectedAccounts.length} account{connectedAccounts.length > 1 ? "s" : ""} × {concurrency} prompts each = up to {connectedAccounts.length * concurrency} total in parallel
             </p>
           </div>
@@ -359,8 +359,8 @@ export default function Images() {
           <div className="mt-4 pt-4 border-t border-border">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-purple-400" />
-                <span className="text-sm text-gray-400">Model:</span>
+                <Sparkles className="w-4 h-4 text-tag-purple" />
+                <span className="text-sm text-ink-dim">Model:</span>
               </div>
               <div className="flex gap-1 bg-surface-hover rounded-lg p-0.5">
                 {MODELS.map((m) => (
@@ -370,7 +370,7 @@ export default function Images() {
                     className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all ${
                       model === m
                         ? "bg-accent/20 text-accent border border-accent/30"
-                        : "text-gray-500 hover:text-foreground dark:hover:text-white"
+                        : "text-ink-dim hover:text-ink hover:text-ink"
                     }`}
                   >
                     {m}
@@ -378,7 +378,7 @@ export default function Images() {
                 ))}
               </div>
             </div>
-            <p className="text-xs text-gray-600 mt-2">
+            <p className="text-xs text-ink-faint mt-2">
               {model === "NARWHAL" ? "Default model — good quality, fast" :
                model === "GEM_PIX_2" ? "Gemini Pixel 2 — higher quality, more detailed" :
                "PINHOLE — alternative model"}
@@ -391,8 +391,8 @@ export default function Images() {
       <Card className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Upload className="w-4 h-4 text-pink-400" />
-            <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">
+            <Upload className="w-4 h-4 text-tag-pink" />
+            <h3 className="text-sm font-semibold text-ink font-sans">
               Character Reference
             </h3>
           </div>
@@ -434,7 +434,7 @@ export default function Images() {
         </div>
 
         {references.length === 0 ? (
-          <p className="text-xs text-gray-600">
+          <p className="text-xs text-ink-faint">
             No reference image set. Upload a character image to maintain visual consistency across all scenes.
           </p>
         ) : (
@@ -449,7 +449,7 @@ export default function Images() {
                   />
                 </div>
                 <button
-                  className="absolute top-1 right-1 p-1 rounded bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300"
+                  className="absolute top-1 right-1 p-1 rounded bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity text-danger hover:text-danger"
                   onClick={async () => {
                     if (!projectId) return
                     try {
@@ -464,9 +464,9 @@ export default function Images() {
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
-                <p className="text-[10px] text-gray-600 truncate mt-1 text-center">
+                <p className="text-[10px] text-ink-faint truncate mt-1 text-center">
                   {ref.name} 
-                  <span className="text-gray-700"> ({ref.size_kb} KB)</span>
+                  <span className="text-ink-faint"> ({ref.size_kb} KB)</span>
                 </p>
               </div>
             ))}
@@ -476,20 +476,20 @@ export default function Images() {
 
       {/* Stats Bar */}
       <div className="flex items-center gap-4 mb-4 text-sm">
-        <span className="text-gray-500">
-          Done: <span className="text-green-400 font-medium">{doneCount}</span>
+        <span className="text-ink-dim">
+          Done: <span className="text-ok font-medium">{doneCount}</span>
         </span>
-        <span className="text-gray-500">
+        <span className="text-ink-dim">
           Generating: <span className="text-accent font-medium">{generatingCount}</span>
         </span>
-        <span className="text-gray-500">
-          Pending: <span className="text-yellow-400 font-medium">{pendingCount}</span>
+        <span className="text-ink-dim">
+          Pending: <span className="text-warn font-medium">{pendingCount}</span>
         </span>
-        <span className="text-gray-500">
-          Failed: <span className="text-red-400 font-medium">{failedCount}</span>
+        <span className="text-ink-dim">
+          Failed: <span className="text-danger font-medium">{failedCount}</span>
         </span>
         {batchId && (
-          <span className="text-[11px] font-mono text-gray-700 ml-auto">
+          <span className="text-[11px] font-mono text-ink-faint ml-auto">
             batch: {batchId}
           </span>
         )}
@@ -499,7 +499,7 @@ export default function Images() {
       {generating && stats.total > 0 && (
         <Card className="mb-4">
           <ProgressBar progress={((stats.done + stats.failed) / stats.total) * 100} />
-          <p className="text-xs text-gray-500 mt-2 text-center">
+          <p className="text-xs text-ink-dim mt-2 text-center">
             {stats.done + stats.failed} / {stats.total} completed
           </p>
         </Card>
@@ -538,7 +538,7 @@ export default function Images() {
                       disabled={generating}
                       className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/50 transition-all opacity-0 group-hover:opacity-100 disabled:opacity-0"
                     >
-                      <span className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm text-xs text-white">
+                      <span className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm text-xs text-ink">
                         <RefreshCw className="w-3.5 h-3.5" />
                         Regenerate
                       </span>
@@ -552,31 +552,31 @@ export default function Images() {
                         <div className="w-3/4">
                           <ProgressBar progress={imgProgress} />
                         </div>
-                        <span className="text-xs text-gray-500">{Math.round(imgProgress)}%</span>
+                        <span className="text-xs text-ink-dim">{Math.round(imgProgress)}%</span>
                       </>
                     ) : img.status === "failed" ? (
                       <>
-                        <XCircle className="w-8 h-8 text-red-500/40" />
-                        <span className="text-[11px] text-red-500/60">Failed</span>
+                        <XCircle className="w-8 h-8 text-danger/40" />
+                        <span className="text-[11px] text-danger/60">Failed</span>
                         {img.error && (
-                          <span className="text-[9px] text-red-500/40 text-center px-2 leading-tight" title={img.error}>
+                          <span className="text-[9px] text-danger/40 text-center px-2 leading-tight" title={img.error}>
                             {img.error.length > 70 ? img.error.slice(0, 70) + "…" : img.error}
                           </span>
                         )}
                         <button
                           onClick={() => handleRegenerate(img.fragment_id)}
                           disabled={generating}
-                          className="mt-2 px-2.5 py-1 rounded-md bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[10px] flex items-center gap-1 transition-all"
+                          className="mt-2 px-2.5 py-1 rounded-md bg-danger/20 hover:bg-danger/30 text-danger text-[10px] flex items-center gap-1 transition-all"
                         >
                           <RefreshCw className="w-3 h-3" />
                           Retry
                         </button>
                       </>
                     ) : img.status === "done" ? (
-                      <CheckCircle className="w-8 h-8 text-green-500/40" />
+                      <CheckCircle className="w-8 h-8 text-ok/40" />
                     ) : (
                       <>
-                        <ImageIcon className="w-8 h-8 text-gray-700" />
+                        <ImageIcon className="w-8 h-8 text-ink-faint" />
                         <button
                           onClick={() => handleRegenerate(img.fragment_id)}
                           disabled={generating}
@@ -590,7 +590,7 @@ export default function Images() {
                   </div>
                 )}
                 <div className="p-2 flex items-center justify-between">
-                  <span className="text-xs font-mono text-gray-600">
+                  <span className="text-xs font-mono text-ink-faint">
                     #{img.fragment_id}
                   </span>
                   <Badge

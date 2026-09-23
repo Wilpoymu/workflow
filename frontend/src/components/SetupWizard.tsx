@@ -35,15 +35,15 @@ export default function SetupWizard({ suggestedBase, onComplete }: SetupWizardPr
           <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-5 glow-teal">
             <FolderPlus className="w-7 h-7 text-accent" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground dark:text-white font-sans">Welcome to Workflow</h1>
-          <p className="text-sm text-gray-500 font-body mt-2 max-w-sm mx-auto leading-relaxed">
+          <h1 className="text-2xl font-bold text-ink font-sans">Welcome to Workflow</h1>
+          <p className="text-sm text-ink-dim font-body mt-2 max-w-sm mx-auto leading-relaxed">
             Set up your first channel to get started. A channel is a folder where your video projects live.
           </p>
         </div>
 
         <div className="card space-y-5">
           <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block font-sans">
+            <label className="text-xs font-semibold text-ink-dim uppercase tracking-wider mb-2 block font-sans">
               Channel Name
             </label>
             <input
@@ -56,18 +56,18 @@ export default function SetupWizard({ suggestedBase, onComplete }: SetupWizardPr
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block font-sans">
+            <label className="text-xs font-semibold text-ink-dim uppercase tracking-wider mb-2 block font-sans">
               Projects Folder
             </label>
             <div className="relative">
-              <FolderOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
+              <FolderOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-faint pointer-events-none" />
               <input
                 className="input pl-10 font-mono text-xs"
                 value={basePath}
                 onChange={(e) => setBasePath(e.target.value)}
               />
             </div>
-            <p className="text-[11px] text-gray-700 font-body mt-1.5 flex items-center gap-1">
+            <p className="text-[11px] text-ink-faint font-body mt-1.5 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" />
               Each project (video) will be created as a subfolder here
             </p>

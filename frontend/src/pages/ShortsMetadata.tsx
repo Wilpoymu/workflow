@@ -50,7 +50,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="text-xs text-gray-500 hover:text-accent transition-colors flex items-center gap-1"
+      className="text-xs text-ink-dim hover:text-accent transition-colors flex items-center gap-1"
     >
       {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
       {copied ? "Copied" : "Copy"}
@@ -66,7 +66,7 @@ function TagList({ tags, icon }: { tags: string[]; icon?: React.ReactNode }) {
       {tags.map((tag, i) => (
         <span
           key={i}
-          className="text-xs px-2 py-0.5 rounded-full bg-surface-hover text-gray-300 border border-border font-mono"
+          className="text-xs px-2 py-0.5 rounded-full bg-surface-hover text-ink-dim border border-border font-mono"
         >
           {tag.startsWith("#") ? tag : `#${tag}`}
         </span>
@@ -96,37 +96,37 @@ function PlatformCard({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {icon}
-          <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">{label}</h3>
+          <h3 className="text-sm font-semibold text-ink font-sans">{label}</h3>
         </div>
         <CopyButton text={fullDescription} label={`${label} metadata`} />
       </div>
 
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Title</label>
+          <label className="text-xs text-ink-dim uppercase tracking-wider font-semibold">Title</label>
           <CopyButton text={data.title} label="Title" />
         </div>
-        <p className="text-sm text-foreground dark:text-white font-body bg-surface-hover rounded-lg px-3 py-2 border border-border">
+        <p className="text-sm text-ink font-body bg-surface-hover rounded-lg px-3 py-2 border border-border">
           {data.title}
         </p>
-        <p className="text-[11px] text-gray-600 mt-1 font-mono">{data.title.length} chars</p>
+        <p className="text-[11px] text-ink-faint mt-1 font-mono">{data.title.length} chars</p>
       </div>
 
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Description</label>
+          <label className="text-xs text-ink-dim uppercase tracking-wider font-semibold">Description</label>
           <CopyButton text={data.description} label="Description" />
         </div>
-        <p className="text-sm text-gray-300 font-body bg-surface-hover rounded-lg px-3 py-2 border border-border whitespace-pre-wrap">
+        <p className="text-sm text-ink-dim font-body bg-surface-hover rounded-lg px-3 py-2 border border-border whitespace-pre-wrap">
           {data.description}
         </p>
-        <p className="text-[11px] text-gray-600 mt-1 font-mono">{data.description.length} chars</p>
+        <p className="text-[11px] text-ink-faint mt-1 font-mono">{data.description.length} chars</p>
       </div>
 
       {"tags" in data && data.tags && data.tags.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Tags</label>
+            <label className="text-xs text-ink-dim uppercase tracking-wider font-semibold">Tags</label>
             <CopyButton text={data.tags.join(", ")} label="Tags" />
           </div>
           <TagList tags={data.tags} />
@@ -136,7 +136,7 @@ function PlatformCard({
       {"hashtags" in data && (data as any).hashtags && (data as any).hashtags.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Hashtags</label>
+            <label className="text-xs text-ink-dim uppercase tracking-wider font-semibold">Hashtags</label>
             <CopyButton text={(data as any).hashtags.map((h: string) => h.startsWith("#") ? h : `#${h}`).join(" ")} label="Hashtags" />
           </div>
           <TagList tags={(data as any).hashtags} icon={<Hash className="w-3.5 h-3.5 text-accent" />} />
@@ -145,10 +145,10 @@ function PlatformCard({
 
       {platform === "tiktok" && (data as TikTokMetadata).audio_suggestion && (
         <div>
-          <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1 block">
+          <label className="text-xs text-ink-dim uppercase tracking-wider font-semibold mb-1 block">
             Audio Suggestion
           </label>
-          <p className="text-sm text-gray-300 font-body">
+          <p className="text-sm text-ink-dim font-body">
             {(data as TikTokMetadata).audio_suggestion}
           </p>
         </div>
@@ -156,10 +156,10 @@ function PlatformCard({
 
       {platform === "youtube" && (data as YouTubeMetadata).category && (
         <div>
-          <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1 block">
+          <label className="text-xs text-ink-dim uppercase tracking-wider font-semibold mb-1 block">
             Category
           </label>
-          <p className="text-sm text-gray-300 font-body">
+          <p className="text-sm text-ink-dim font-body">
             {(data as YouTubeMetadata).category}
           </p>
         </div>
@@ -265,15 +265,15 @@ export default function ShortsMetadata() {
         {/* Left — Input */}
         <div className="lg:col-span-1 space-y-4">
           <Card>
-            <h3 className="text-sm font-semibold text-foreground dark:text-white mb-4 font-sans">Content</h3>
+            <h3 className="text-sm font-semibold text-ink mb-4 font-sans">Content</h3>
 
             <div className="space-y-4">
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1.5 block">
+                <label className="text-xs text-ink-dim uppercase tracking-wider font-semibold mb-1.5 block">
                   Script Text
                 </label>
                 <textarea
-                  className="w-full h-48 bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm text-gray-300 font-body placeholder:text-gray-700 focus:outline-none focus:border-accent resize-y"
+                  className="w-full h-48 max-h-72 [field-sizing:content] bg-surface-hover border border-border rounded-lg px-3 py-2 text-sm text-ink-dim font-body placeholder:text-ink-faint focus:outline-none focus:border-accent resize-y"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   placeholder="Paste or type the short's script text..."
@@ -281,7 +281,7 @@ export default function ShortsMetadata() {
               </div>
 
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1.5 block">
+                <label className="text-xs text-ink-dim uppercase tracking-wider font-semibold mb-1.5 block">
                   Platform
                 </label>
                 <div className="flex gap-2">
@@ -292,7 +292,7 @@ export default function ShortsMetadata() {
                       className={`flex-1 text-xs py-2 rounded-lg border transition-all flex items-center justify-center gap-1.5 ${
                         platform === p
                           ? "border-accent bg-accent/10 text-accent"
-                          : "border-border text-gray-500 hover:border-accent/30"
+                          : "border-border text-ink-dim hover:border-accent/30"
                       }`}
                     >
                       {p === "tiktok" && <Smartphone className="w-3.5 h-3.5" />}
@@ -330,11 +330,11 @@ export default function ShortsMetadata() {
           {!result && !loading && (
             <Card>
               <div className="text-center py-10">
-                <FileText className="w-12 h-12 text-gray-800 mx-auto mb-3" />
-                <p className="text-sm text-gray-500 font-body mb-1">
+                <FileText className="w-12 h-12 text-ink-faint mx-auto mb-3" />
+                <p className="text-sm text-ink-dim font-body mb-1">
                   Enter your short's script and generate metadata
                 </p>
-                <p className="text-xs text-gray-700 font-body">
+                <p className="text-xs text-ink-faint font-body">
                   Get optimized titles, descriptions, tags, and hashtags for each platform
                 </p>
               </div>
@@ -345,7 +345,7 @@ export default function ShortsMetadata() {
             <Card>
               <div className="text-center py-10">
                 <RefreshCw className="w-10 h-10 text-accent animate-spin mx-auto mb-3" />
-                <p className="text-sm text-gray-400 font-body">Generating metadata with AI...</p>
+                <p className="text-sm text-ink-dim font-body">Generating metadata with AI...</p>
               </div>
             </Card>
           )}
@@ -366,13 +366,13 @@ export default function ShortsMetadata() {
                 platform="tiktok"
                 data={result.tiktok}
                 label="TikTok"
-                icon={<Smartphone className="w-4 h-4 text-pink-400" />}
+                icon={<Smartphone className="w-4 h-4 text-tag-pink" />}
               />
               <PlatformCard
                 platform="youtube"
                 data={result.youtube}
                 label="YouTube Shorts"
-                icon={<PlaySquare className="w-4 h-4 text-red-400" />}
+                icon={<PlaySquare className="w-4 h-4 text-danger" />}
               />
             </>
           )}

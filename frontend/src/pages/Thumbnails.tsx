@@ -188,16 +188,16 @@ export default function Thumbnails() {
       <Card className="mb-6">
         <div className="flex items-center gap-2 mb-3">
           <ImageIcon className="w-4 h-4 text-accent" />
-          <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">Script</h3>
+          <h3 className="text-sm font-semibold text-ink font-sans">Script</h3>
         </div>
         <textarea
-          className="w-full h-32 bg-surface-hover border border-border rounded-lg p-3 text-sm text-gray-300 font-mono resize-y focus:outline-none focus:border-accent/50 transition-colors"
+          className="w-full h-40 max-h-72 [field-sizing:content] bg-surface-hover border border-border rounded-lg p-3 text-sm text-ink-dim font-mono resize-y focus:outline-none focus:border-accent/50 transition-colors"
           value={script}
           onChange={(e) => setScript(e.target.value)}
           placeholder="Enter your video script or paste the full text..."
           disabled={generating}
         />
-        <p className="text-xs text-gray-600 mt-2">
+        <p className="text-xs text-ink-faint mt-2">
           Gemini analyzes the script to suggest a thumbnail composition, colors, and hook text.
         </p>
       </Card>
@@ -206,8 +206,8 @@ export default function Thumbnails() {
       <Card className="mb-6">
         <div className="flex items-center gap-4 mb-4">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-purple-400" />
-            <span className="text-sm text-gray-400">Mode:</span>
+            <Sparkles className="w-4 h-4 text-tag-purple" />
+            <span className="text-sm text-ink-dim">Mode:</span>
           </div>
           <div className="flex gap-1 bg-surface-hover rounded-lg p-0.5">
             {(["single", "ab_testing"] as const).map((m) => (
@@ -218,7 +218,7 @@ export default function Thumbnails() {
                 className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all ${
                   mode === m
                     ? "bg-accent/20 text-accent border border-accent/30"
-                    : "text-gray-500 hover:text-foreground dark:hover:text-white"
+                    : "text-ink-dim hover:text-ink hover:text-ink"
                 }`}
               >
                 {m === "single" ? "Single" : "A/B Testing"}
@@ -230,7 +230,7 @@ export default function Thumbnails() {
         {mode === "ab_testing" && (
           <div className="pt-4 border-t border-border">
             <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-400">Variants:</span>
+              <span className="text-sm text-ink-dim">Variants:</span>
               <div className="flex gap-1 bg-surface-hover rounded-lg p-0.5">
                 {[2, 3].map((n) => (
                   <button
@@ -240,7 +240,7 @@ export default function Thumbnails() {
                     className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all ${
                       variantCount === n
                         ? "bg-accent/20 text-accent border border-accent/30"
-                        : "text-gray-500 hover:text-foreground dark:hover:text-white"
+                        : "text-ink-dim hover:text-ink hover:text-ink"
                     }`}
                   >
                     {n} variants
@@ -248,13 +248,13 @@ export default function Thumbnails() {
                 ))}
               </div>
             </div>
-            <p className="text-xs text-gray-600 mt-2">
+            <p className="text-xs text-ink-faint mt-2">
               Each variant uses different text positioning, color accent, and hook phrasing
             </p>
           </div>
         )}
 
-        <p className="text-xs text-gray-600 mt-2">
+        <p className="text-xs text-ink-faint mt-2">
           {mode === "single"
             ? "Generate one optimized thumbnail based on Gemini's analysis"
             : "Generate multiple variants to test which performs best with your audience"}
@@ -266,13 +266,13 @@ export default function Thumbnails() {
         <Card className="mb-6">
           <div className="flex items-center gap-3 mb-3">
             <Loader2 className="w-4 h-4 text-accent animate-spin" />
-            <span className="text-sm text-gray-300 font-medium capitalize">{genStatus}</span>
+            <span className="text-sm text-ink-dim font-medium capitalize">{genStatus}</span>
             {progressMsg && (
-              <span className="text-xs text-gray-500 ml-auto truncate">{progressMsg}</span>
+              <span className="text-xs text-ink-dim ml-auto truncate">{progressMsg}</span>
             )}
           </div>
           <ProgressBar progress={progress * 100} />
-          <p className="text-xs text-gray-500 mt-2 text-center">
+          <p className="text-xs text-ink-dim mt-2 text-center">
             {Math.round(progress * 100)}%
           </p>
         </Card>
@@ -280,12 +280,12 @@ export default function Thumbnails() {
 
       {/* ── Error State ────────────────────────────────── */}
       {error && !generating && (
-        <Card className="mb-6 border border-red-500/30">
+        <Card className="mb-6 border border-danger/30">
           <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+            <AlertCircle className="w-5 h-5 text-danger shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-red-400 font-medium">Generation failed</p>
-              <p className="text-xs text-red-400/70 mt-0.5">{error}</p>
+              <p className="text-sm text-danger font-medium">Generation failed</p>
+              <p className="text-xs text-danger/70 mt-0.5">{error}</p>
             </div>
             <button className="btn-secondary text-xs shrink-0" onClick={handleGenerate}>
               <RefreshCw className="w-3 h-3" />
@@ -299,11 +299,11 @@ export default function Thumbnails() {
       {variants.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <CheckCircle className="w-4 h-4 text-green-400" />
-            <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">
+            <CheckCircle className="w-4 h-4 text-ok" />
+            <h3 className="text-sm font-semibold text-ink font-sans">
               Generated Thumbnail{variants.length > 1 ? "s" : ""}
             </h3>
-            <span className="text-xs text-gray-600">
+            <span className="text-xs text-ink-faint">
               ({variants.length} variant{variants.length > 1 ? "s" : ""})
             </span>
           </div>
@@ -322,23 +322,23 @@ export default function Thumbnails() {
                     className="w-full h-full object-cover"
                     loading="lazy"
                   />
-                  <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/60 text-[10px] text-gray-300 font-mono">
+                  <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/60 text-[10px] text-ink-dim font-mono">
                     v{v.variant + 1}
                   </div>
                   <a
                     href={v.url}
                     download
-                    className="absolute top-2 right-2 p-2 rounded-lg bg-black/60 hover:bg-black/80 text-gray-300 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                    className="absolute top-2 right-2 p-2 rounded-lg bg-black/60 hover:bg-black/80 text-ink-dim hover:text-ink transition-all opacity-0 group-hover:opacity-100"
                     title="Download thumbnail"
                   >
                     <Download className="w-4 h-4" />
                   </a>
                 </div>
                 <div className="p-2 flex items-center justify-between">
-                  <span className="text-xs text-gray-600 font-mono">
+                  <span className="text-xs text-ink-faint font-mono">
                     Variant {v.variant + 1}
                   </span>
-                  <span className="text-[10px] text-gray-700">seed: {v.seed}</span>
+                  <span className="text-[10px] text-ink-faint">seed: {v.seed}</span>
                 </div>
               </Card>
             ))}

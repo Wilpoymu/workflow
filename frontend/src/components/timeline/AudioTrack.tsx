@@ -55,8 +55,8 @@ export default function AudioTrack({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`absolute top-1 bottom-1 rounded cursor-grab active:cursor-grabbing overflow-hidden bg-emerald-600/30
-        ${isSelected ? "ring-2 ring-emerald-400" : ""}
+      className={`absolute top-1 bottom-1 rounded cursor-grab active:cursor-grabbing overflow-hidden bg-ok/30
+        ${isSelected ? "ring-2 ring-ok" : ""}
         transition-colors duration-75`}
       style={style}
       onClick={() => onSelect(clip.id)}
@@ -76,7 +76,7 @@ export default function AudioTrack({
       </svg>
 
       {/* ── Duration label ──────────────────────────────────────── */}
-      <span className="absolute inset-x-1 bottom-1 text-[9px] text-emerald-300/60 font-mono pointer-events-none">
+      <span className="absolute inset-x-1 bottom-1 text-[9px] text-ok/70 font-mono pointer-events-none">
         {(clip.duration ?? 0).toFixed(1)}s
       </span>
 

@@ -26,9 +26,9 @@ function ScriptStat({ label, value }: { label: string; value: string | number })
   const Icon = statIcons[label]
   return (
     <span className="inline-flex items-center gap-1 bg-surface-hover px-2 py-1 rounded-md" title={label}>
-      {Icon && <Icon className="w-3 h-3 text-gray-600" />}
-      <span className="text-gray-400">{label}:</span>
-      <span className="text-gray-300 font-semibold">{value}</span>
+      {Icon && <Icon className="w-3 h-3 text-ink-faint" />}
+      <span className="text-ink-dim">{label}:</span>
+      <span className="text-ink-dim font-semibold">{value}</span>
     </span>
   )
 }
@@ -407,13 +407,13 @@ export default function Editor() {
         >
           <div className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-accent" />
-            <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">Full Script</h3>
-            {scriptLoading && <Loader2 className="w-3 h-3 text-gray-500 animate-spin" />}
+            <h3 className="text-sm font-semibold text-ink font-sans">Full Script</h3>
+            {scriptLoading && <Loader2 className="w-3 h-3 text-ink-dim animate-spin" />}
           </div>
           {scriptOpen ? (
-            <ChevronDown className="w-4 h-4 text-gray-500" />
+            <ChevronDown className="w-4 h-4 text-ink-dim" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-gray-500" />
+            <ChevronRight className="w-4 h-4 text-ink-dim" />
           )}
         </button>
 
@@ -427,7 +427,7 @@ export default function Editor() {
               disabled={scriptLoading}
             />
             <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3 text-xs text-gray-500 font-mono flex-wrap">
+              <div className="flex items-center gap-3 text-xs text-ink-dim font-mono flex-wrap">
                 {scriptText.length > 0 ? (
                   <>
                     <ScriptStat label="Words" value={scriptText.trim().split(/\s+/).length} />
@@ -447,7 +447,7 @@ export default function Editor() {
                     />
                   </>
                 ) : (
-                  <span className="text-gray-600">No text yet</span>
+                  <span className="text-ink-faint">No text yet</span>
                 )}
               </div>
               <button
@@ -486,16 +486,16 @@ export default function Editor() {
       <Card className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-pink-400" />
-            <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">Image Style</h3>
+            <Sparkles className="w-4 h-4 text-tag-pink" />
+            <h3 className="text-sm font-semibold text-ink font-sans">Image Style</h3>
           </div>
 
           {/* Gemini Web Bridge Status + Toggle */}
           <div className="flex items-center gap-3">
             {/* Toggle switch */}
             <label className="flex items-center gap-1.5 cursor-pointer" title={useGeminiWeb ? "Gemini Web habilitado como fallback" : "Gemini Web deshabilitado"}>
-              <span className={`text-[10px] font-medium ${useGeminiWeb ? 'text-green-400/70' : 'text-gray-600'}`}>GW</span>
-              <div className="relative w-8 h-4 rounded-full transition-colors" style={{ backgroundColor: useGeminiWeb ? '#22c55e' : '#404040' }}>
+              <span className={`text-[10px] font-medium ${useGeminiWeb ? 'text-ok/70' : 'text-ink-faint'}`}>GW</span>
+              <div className="relative w-8 h-4 rounded-full transition-colors" style={{ backgroundColor: useGeminiWeb ? 'rgb(115 208 162)' : 'rgb(31 36 42)' }}>
                 <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${useGeminiWeb ? 'translate-x-4' : 'translate-x-0.5'}`} />
               </div>
               <input type="checkbox" className="hidden" checked={useGeminiWeb} onChange={(e) => setUseGeminiWeb(e.target.checked)} />
@@ -505,32 +505,32 @@ export default function Editor() {
             <div className="flex items-center gap-1.5 text-xs" title="Gemini Web cookie-based provider status">
               {bridgeStatus === "connected" ? (
                 <>
-                  <Wifi className="w-3.5 h-3.5 text-green-400" />
-                  <span className="text-green-400 font-medium">Gemini Web</span>
-                  <span className="text-green-400/60">({bridgeProfiles} acc.)</span>
+                  <Wifi className="w-3.5 h-3.5 text-ok" />
+                  <span className="text-ok font-medium">Gemini Web</span>
+                  <span className="text-ok/60">({bridgeProfiles} acc.)</span>
                 </>
               ) : bridgeStatus === "no-cookies" ? (
                 <>
-                  <Globe className="w-3.5 h-3.5 text-yellow-400" />
-                  <span className="text-yellow-400">Gemini Web</span>
-                  <span className="text-yellow-400/60">sin cookies</span>
+                  <Globe className="w-3.5 h-3.5 text-warn" />
+                  <span className="text-warn">Gemini Web</span>
+                  <span className="text-warn/60">sin cookies</span>
                 </>
               ) : bridgeStatus === "no-extension" ? (
                 <>
-                  <WifiOff className="w-3.5 h-3.5 text-gray-500" />
-                  <span className="text-gray-500">Gemini Web</span>
-                  <span className="text-gray-500/60">ext. no detectada</span>
+                  <WifiOff className="w-3.5 h-3.5 text-ink-dim" />
+                  <span className="text-ink-dim">Gemini Web</span>
+                  <span className="text-ink-dim/60">ext. no detectada</span>
                 </>
               ) : bridgeStatus === "loading" ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 text-gray-500 animate-spin" />
-                  <span className="text-gray-500">Gemini Web</span>
+                  <Loader2 className="w-3.5 h-3.5 text-ink-dim animate-spin" />
+                  <span className="text-ink-dim">Gemini Web</span>
                 </>
               ) : (
                 <>
-                  <WifiOff className="w-3.5 h-3.5 text-red-400" />
-                  <span className="text-red-400">Gemini Web</span>
-                  <span className="text-red-400/60">error</span>
+                  <WifiOff className="w-3.5 h-3.5 text-danger" />
+                  <span className="text-danger">Gemini Web</span>
+                  <span className="text-danger/60">error</span>
                 </>
               )}
             </div>
@@ -539,10 +539,10 @@ export default function Editor() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs text-gray-500 font-semibold mb-1.5">
+            <label className="block text-xs text-ink-dim font-semibold mb-1.5">
               Visual style / Gem
               {imageStyle && gemPreviewMap[imageStyle] && (
-                <span className="text-gray-600 font-normal ml-2">
+                <span className="text-ink-faint font-normal ml-2">
                   — preview: {gemPreviewMap[imageStyle]}
                 </span>
               )}
@@ -579,7 +579,7 @@ export default function Editor() {
           </div>
           {customStyle && (
             <div>
-              <label className="block text-xs text-gray-500 font-semibold mb-1.5">Custom style description</label>
+              <label className="block text-xs text-ink-dim font-semibold mb-1.5">Custom style description</label>
               <textarea
                 className="input w-full min-h-[60px] resize-none"
                 placeholder="Describe el estilo visual (e.g. Cyberpunk, neon lights, 80s aesthetic...)"
@@ -591,12 +591,12 @@ export default function Editor() {
           )}
           {!customStyle && imageStyle && (
             <div className="flex items-end">
-              <p className="text-xs text-gray-500 pb-2">
+              <p className="text-xs text-ink-dim pb-2">
                 Style:{' '}
                 <span className="text-accent font-semibold">{imageStyle}</span>
                 {' — '}
                 <button
-                  className="text-gray-600 hover:text-accent underline"
+                  className="text-ink-faint hover:text-accent underline"
                   onClick={() => setCustomStyle(true)}
                 >
                   Customize
@@ -608,7 +608,7 @@ export default function Editor() {
 
         {/* Gem Preview Panel (editable) */}
         {gemDetailLoading ? (
-          <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+          <div className="mt-3 flex items-center gap-2 text-xs text-ink-dim">
             <Loader2 className="w-3 h-3 animate-spin" />
             Loading gem details...
           </div>
@@ -617,17 +617,17 @@ export default function Editor() {
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-border">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                <span className="text-xs font-semibold text-ink-dim uppercase tracking-wider">
                   {gemDetail.type === "prompt" ? "Prompt Maestro" : "Estilo Visual"}
                 </span>
-                <span className="text-[10px] text-gray-600 font-mono">
+                <span className="text-[10px] text-ink-faint font-mono">
                   {gemDetail.type === "prompt" ? "system prompt" : "descriptor"}
                 </span>
               </div>
               {editingGem ? (
                 <div className="flex items-center gap-1">
                   <button
-                    className="p-1 rounded hover:bg-surface-hover text-green-400 disabled:opacity-40"
+                    className="p-1 rounded hover:bg-surface-hover text-ok disabled:opacity-40"
                     onClick={async () => {
                       if (!editGemValue.trim()) return
                       setEditGemSaving(true)
@@ -646,7 +646,7 @@ export default function Editor() {
                     {editGemSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                   </button>
                   <button
-                    className="p-1 rounded hover:bg-surface-hover text-gray-500"
+                    className="p-1 rounded hover:bg-surface-hover text-ink-dim"
                     onClick={() => setEditingGem(false)}
                     title="Cancel"
                   >
@@ -655,7 +655,7 @@ export default function Editor() {
                 </div>
               ) : (
                 <button
-                  className="p-1 rounded hover:bg-surface-hover text-gray-500 hover:text-accent"
+                  className="p-1 rounded hover:bg-surface-hover text-ink-dim hover:text-accent"
                   onClick={() => { setEditGemValue(gemDetail.value); setEditingGem(true); setShowFullPreview(true) }}
                   title="Edit gem content"
                 >
@@ -667,13 +667,13 @@ export default function Editor() {
             {/* Content */}
             {editingGem ? (
               <textarea
-                className="w-full px-3 py-2 text-xs font-mono leading-relaxed bg-[#0a0a0a] text-gray-300 border-0 resize-y min-h-[120px] focus:outline-none"
+                className="w-full px-3 py-2 text-xs font-mono leading-relaxed bg-surface text-ink-dim border-0 resize-y min-h-[120px] focus:outline-none"
                 value={editGemValue}
                 onChange={(e) => setEditGemValue(e.target.value)}
                 autoFocus
               />
             ) : (
-              <pre className={`px-3 py-2 text-xs font-mono leading-relaxed text-gray-400 overflow-x-auto whitespace-pre-wrap ${
+              <pre className={`px-3 py-2 text-xs font-mono leading-relaxed text-ink-dim overflow-x-auto whitespace-pre-wrap ${
                 showFullPreview ? "" : "max-h-20 overflow-y-hidden"
               }`}>
                 {gemDetail.value}
@@ -695,17 +695,17 @@ export default function Editor() {
 
       {/* Progress during prompt generation */}
       {generatingPrompts && (
-        <Card className="mb-6 border-pink-500/30 bg-pink-500/5">
+        <Card className="mb-6 border-tag-pink/30 bg-tag-pink/5">
           <div className="flex items-center gap-3">
-            <Loader2 className="w-5 h-5 text-pink-400 animate-spin shrink-0" />
+            <Loader2 className="w-5 h-5 text-tag-pink animate-spin shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-pink-400">
+              <p className="text-sm font-medium text-tag-pink">
                 Generating prompts for {generatingTotal} fragments
                 {totalBatches > 0 && (
-                  <span className="text-pink-300/70"> · Batch {currentBatch}/{totalBatches}</span>
+                  <span className="text-tag-pink/70"> · Batch {currentBatch}/{totalBatches}</span>
                 )}
               </p>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-ink-dim mt-0.5">
                 Elapsed: {Math.floor(generatingElapsed / 60)}m {generatingElapsed % 60}s
                 {totalBatches > 0 && currentBatch > 0 && (
                   <> · ~{Math.max(1, Math.round((totalBatches - currentBatch) * 4.2))}s remaining</>
