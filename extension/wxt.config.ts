@@ -13,6 +13,7 @@ export default defineConfig({
     ],
     host_permissions: [
       "https://labs.google/*",
+      "https://flow.google.com/*",
       "https://aisandbox-pa.googleapis.com/*",
       "https://gemini.google.com/*",
       "https://google.com/*",
