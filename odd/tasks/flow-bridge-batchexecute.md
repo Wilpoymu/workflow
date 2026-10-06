@@ -1,6 +1,6 @@
 # Feature: Flow Bridge — batchexecute migration
 
-**Status**: in progress — T2 done; native review of T2 blocked by reviewer-model budget (decision pending)
+**Status**: in progress — T2 done; native review of T2 awaiting OpenCode restart (reviewer model switched to `opencode-go/mimo-v2.6-flash`)
 **Branch**: `feat/flow-bridge-batchexecute` (from `develop` @867ae4e)
 **Created**: 2026-10-06
 **Authorized by**: user ("Vamos con ello", 2026-10-06). Project provisioning refined to **auto-create per account** (user question, 2026-10-06).
@@ -67,9 +67,18 @@ RDD assessed T2 commit `20032b9` as medium / `review_due: true` (`slice_budget_r
 
 - **5 bounded launch attempts**, all returned typed `opencode_task_output_empty` ("the reviewer Task completed without producing a result").
 - **Root cause (verified from OpenCode's own SQLite records):** the reviewer child model `deepseek-v4.1-flash` (`variant: max`) **exhausts its 32 000-token reasoning budget** on the ~70 KB review materialization and finishes with `finish: length`, `output: 0`, no text parts; the OpenCode host renders that as an empty `<task_result>`, and the relay correctly refuses it (`opencode_task_output_empty`). Reasoning parts were ~108–111 K chars per attempt with zero output tokens.
-- **Historical context:** same failure class exists across earlier reviewer sessions on this model (flaky; some sessions succeed after 1–2 retries with `finish: stop`). Five consecutive failures exceed the useful autonomous retry budget; the empty-result host behavior is a known upstream OpenCode class (fix in `anomalyco/opencode#39473`; tracked in gentle-ai `#2609`). Not a defect in the T2 code, and **not a Gentle AI provider defect** (model/provider-side behavior; gentle-ai typed it correctly).
+- **Historical context:** same failure class exists across earlier reviewer sessions on this model (flaky; some sessions succeed after 1–2 retries with `finish: stop`). The empty-result host behavior is a known upstream OpenCode class (fix in `anomalyco/opencode#39473`; tracked in gentle-ai `#2609`). Not a defect in the T2 code, and **not a Gentle AI provider defect** (model/provider-side behavior; gentle-ai typed it correctly).
 - **State preserved:** the slot is NOT consumed (failed captures never consume the lens slot); lineage remains `reviewing`; candidate tree untouched. Recovery = relaunch the slot once the reviewer environment can produce output.
-- **Decision pending (user):** (a) retry more launches now; (b) change the reviewer model/variant for `review-*` agents (config + OpenCode reload) then relaunch; (c) continue without the T2 native review under ordinary policy.
+- **Decision (user, 2026-10-06):** switch the reviewer model. Applied: `"model": "opencode-go/mimo-v2.6-flash"` added to the six `review-*` agents in `~/.config/opencode/opencode.json` (backup: `opencode.json.bak-2026-10-06`; JSON re-validated). Config is not hot-reloaded → **OpenCode restart required**.
+
+### Resume instructions (after OpenCode restart)
+1. Query the frozen-binding STATUS (the relaunch slot is reoffered by the same collect):
+```
+gentle-ai review status --contract=gentle-ai.review-integration/v2 --next-transition=true --lineage=review-bb36a75575e2f86e --repository-context=rctx2_4089c5f9d34d442b9c0f417c3d29c1dddb733e6ffc1e706a6efb86ca5976654a --agent=opencode --base-ref=c7f61c0c801d837ce33148e8cae5097ca8aa5c54 --committed-only=true
+```
+2. If it reoffers `collect / reviewer_results_required`, launch the provider task (`review-reliability` agent, exact prompt from the input) — now on `mimo-v2.6-flash`.
+3. Follow STATUS transitions through capture/closure, then the reviewed boundary advances and work continues with T3.
+Caveat: a future `gentle-ai sync` / managed-asset refresh may rewrite the agent blocks and drop the `model` field — re-check and re-apply if the reviewer model regresses.
 
 ## Acceptance criteria
 - `/api/accounts` lists account(s) while a signed-in `flow.google.com` tab is open with the extension loaded.
@@ -93,7 +102,8 @@ Off (project precedent — Standard mode; no user TDD setting). Ordinary functio
 - 2026-10-06: T1 recon complete — integration spec extracted.
 - 2026-10-06: project provisioning design updated to auto-create (user question).
 - 2026-10-06: T2 complete — commit `20032b9` (vendored module byte-identical + tests). RDD assess: medium, `review_due: true` → native review started; reviewer slot blocked by model reasoning-budget exhaustion after 5 attempts (see incident).
-- 2026-10-06: doc updated with incident record; decision pending on how to proceed with T2's native review.
+- 2026-10-06: doc updated with incident record (commit `3b7d2e0`).
+- 2026-10-06: user decided to switch the reviewer model; applied `opencode-go/mimo-v2.6-flash` to the six `review-*` agents (config backup `opencode.json.bak-2026-10-06`); awaiting OpenCode restart to relaunch the reviewer slot.
 
 ## Next step
-User decision on the T2 native review incident (retry / reviewer model / skip), then T3.
+Restart OpenCode (config is not hot-reloaded), then relaunch the T2 reviewer slot (see Resume instructions), drive STATUS to closure, then proceed with T3.
