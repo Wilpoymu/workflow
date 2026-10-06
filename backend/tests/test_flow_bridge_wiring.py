@@ -100,3 +100,14 @@ class TestDispatchImageRequest:
         assert item[2] == [["ref-1", None, None, None, fb.REF_TYPE_IMAGE]]
         assert item[7][5] == "proj-1"
         assert fb.CAPTCHA_SLOT in freq
+
+class TestLegacyModelAliases:
+    def test_legacy_names_map_to_live_models(self):
+        from app.services.forge_bridge import _model_for_api
+
+        assert _model_for_api("NARWHAL") == "GEM_PIX_2"
+        assert _model_for_api("narwhal") == "GEM_PIX_2"
+        assert _model_for_api("PINHOLE") == "GEM_PIX_2"
+        assert _model_for_api("GEM_PIX_2") == "GEM_PIX_2"
+        assert _model_for_api("HARBOR_SEAL") == "HARBOR_SEAL"
+        assert _model_for_api(None) is None

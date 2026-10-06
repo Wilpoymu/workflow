@@ -20,13 +20,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/projects/{project_id}/images", tags=["images"])
 
 
-FLOW_MODELS = ["NARWHAL", "GEM_PIX_2", "PINHOLE"]
+FLOW_MODELS = ["GEM_PIX_2", "HARBOR_SEAL", "NARWHAL", "PINHOLE"]  # NARWHAL/PINHOLE are legacy aliases -> GEM_PIX_2 (new Flow API)
 
 class GenerateRequest(BaseModel):
     concurrency: int = 2
     accounts: list[str] | None = None
     reference_image_ids: list[str] | None = None
-    model: str = "NARWHAL"
+    model: str = "GEM_PIX_2"
     fragment_ids: list[int] | None = None
     force: bool = False
 

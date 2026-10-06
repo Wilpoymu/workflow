@@ -58,6 +58,19 @@ def _failure_text(raw_data, error: str = "") -> str:
     return text[:300]
 
 
+# The new Flow API rejects the legacy NARWHAL and PINHOLE model ids with a
+# generic batchexecute error slot [5] (observed live 2026-10-06). The working
+# image models are GEM_PIX_2 and HARBOR_SEAL; legacy values are mapped here.
+_LEGACY_IMAGE_MODELS = {"NARWHAL": "GEM_PIX_2", "PINHOLE": "GEM_PIX_2"}
+
+
+def _model_for_api(model: str | None) -> str | None:
+    """Resolve legacy image-model names to ids the new Flow API accepts."""
+    if not model:
+        return model
+    return _LEGACY_IMAGE_MODELS.get(model.strip().upper(), model)
+
+
 class ForgeBridge:
     def __init__(self):
         self.accounts: dict[str, ServerConnection] = {}
@@ -228,7 +241,7 @@ class ForgeBridge:
         project_dir: str,
         fragments: list,
         batch_id: str,
-        model: str = "NARWHAL",
+        model: str = "GEM_PIX_2",
         concurrency: int = 2,
         selected_accounts: list[str] | None = None,
         reference_image_ids: list[str] | None = None,
@@ -328,7 +341,7 @@ class ForgeBridge:
         """Build batchexecute generate items for one account at send time."""
         project_id = await self.project_id_for(account_hash)
         refs = await self._reference_ids_for(state, account_hash, project_id)
-        model = fb.resolve_image_model(state.get("model"))
+        model = fb.resolve_image_model(_model_for_api(state.get("model")))
         requests_list = []
         for f in fragments:
             freq = fb.image_request(
@@ -384,7 +397,7 @@ class ForgeBridge:
         self,
         project_id: str,
         thumbnail_prompt: str,
-        model: str = "NARWHAL",
+        model: str = "GEM_PIX_2",
     ) -> str | None:
         """Dispatch a SINGLE Flow image request for thumbnail background generation.
 
@@ -404,7 +417,7 @@ class ForgeBridge:
                 project_id=flow_project_id,
                 count=1,
                 aspect="IMAGE_ASPECT_RATIO_LANDSCAPE",
-                model=fb.resolve_image_model(model),
+                model=fb.resolve_image_model(_model_for_api(model)),
             )
             raw = await self._rpc_over_ws(acc_hash, fb.RPC_GEN_IMAGE, freq, fb.CAPTCHA_IMAGE, 120)
         except Exception as e:
