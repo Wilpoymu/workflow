@@ -1,9 +1,9 @@
 # Feature: Flow Bridge — batchexecute migration
 
-**Status**: in progress — T2 done; native review of T2 awaiting OpenCode restart (reviewer model switched to `opencode-go/mimo-v2.6-flash`)
+**Status**: in progress — T2 done (native review skipped by explicit user decision, lineage abandoned auditably); T3 launching
 **Branch**: `feat/flow-bridge-batchexecute` (from `develop` @867ae4e)
 **Created**: 2026-10-06
-**Authorized by**: user ("Vamos con ello", 2026-10-06). Project provisioning refined to **auto-create per account** (user question, 2026-10-06).
+**Authorized by**: user ("Vamos con ello", 2026-10-06). Project provisioning refined to **auto-create per account** (user question, 2026-10-06). T2 review skip authorized by user ("Pasemos esto sin revisión", 2026-10-06).
 **Route**: ODD (delegated direct)
 
 ## Objective
@@ -54,31 +54,22 @@ The bridge is the core product value (use the user's own Flow accounts — no of
 
 - [x] **T1. Recon** — integration spec extracted from flowkit clone (envelope, `ogiZ0b`/`maseQ` payload slots, captcha hijack + serialization, `jHPbke` project creation, response parsing, tests map). Reference clone pinned at commit `af5e0583eff5633f5775cafe2ab948e9edfa79d9`. *(delegated `explore`; 4+ reference files)*
 - [x] **T2. Backend module** — vendored `flow_batch.py` (byte-identical; git blob `0e148562b3ea179ec7107236aa2cb749546bd2b0` matches upstream) + MIT LICENSE/NOTICE + ported slot-grammar tests. Commit `20032b9`. Evidence: `python -m pytest tests/test_flow_batch.py tests/test_flow_batch_golden.py` → **75 passed**; regression baseline `test_thumbnail_pillow.py` + `test_thumbnail_gemini.py` → **43 passed**; parent spot-check re-ran the 75 (passed). *(delegated writer)*
-  - **Native review of T2**: started (lineage `review-bb36a75575e2f86e`, medium, 1 lens `review-reliability`); **blocked by reviewer-model reasoning-budget exhaustion** — see incident below.
+  - **Native review of T2: skipped by explicit user decision** (see incident below; lineage abandoned auditably).
 - [ ] **T3. Backend wiring** — rewire `forge_bridge.py` dispatch/result + reference upload via page + project provisioning (`jHPbke` + `flow_projects.json` + override); clean up `main.py` auth path. *(delegated writer, same thread)*
 - [ ] **T4. Extension** — host permissions/matches; hijack-bypass (document_start, MAIN); executor rewrite (batchexecute + serialized captcha); WS protocol update; profile-based account identity; remove bearer code; rebuild unpacked + zip. *(delegated writer)*
 - [ ] **T5. Checks** — backend `pytest` (new + baseline); extension `wxt build`. *(inline bounded + fresh worker if heavy)*
 - [ ] **T6. Live E2E** — with user: open `flow.google.com` signed in, verify account registration + auto project creation, generate ≥1 scene image end-to-end; character-reference variant. *(user + orchestrator; evidence recorded)*
 - [ ] **T7. Close** — remove dead code, final cleanup commits, update doc + Engram mirror, honest close report.
 
-## Incident: native review of T2 blocked (2026-10-06)
+## Incident: native review of T2 (2026-10-06) — resolved by skip
 
-RDD assessed T2 commit `20032b9` as medium / `review_due: true` (`slice_budget_reached`). Review START approved by user; transaction frozen (`review-bb36a75575e2f86e`, state `reviewing`, lens `review-reliability`, correction budget 200). The single reviewer slot could not be filled:
+RDD assessed T2 commit `20032b9` as medium / `review_due: true` (`slice_budget_reached`). Review START approved by user; transaction frozen (`review-bb36a75575e2f86e`, state `reviewing`, lens `review-reliability`). The single reviewer slot could not be filled:
 
-- **5 bounded launch attempts**, all returned typed `opencode_task_output_empty` ("the reviewer Task completed without producing a result").
-- **Root cause (verified from OpenCode's own SQLite records):** the reviewer child model `deepseek-v4.1-flash` (`variant: max`) **exhausts its 32 000-token reasoning budget** on the ~70 KB review materialization and finishes with `finish: length`, `output: 0`, no text parts; the OpenCode host renders that as an empty `<task_result>`, and the relay correctly refuses it (`opencode_task_output_empty`). Reasoning parts were ~108–111 K chars per attempt with zero output tokens.
-- **Historical context:** same failure class exists across earlier reviewer sessions on this model (flaky; some sessions succeed after 1–2 retries with `finish: stop`). The empty-result host behavior is a known upstream OpenCode class (fix in `anomalyco/opencode#39473`; tracked in gentle-ai `#2609`). Not a defect in the T2 code, and **not a Gentle AI provider defect** (model/provider-side behavior; gentle-ai typed it correctly).
-- **State preserved:** the slot is NOT consumed (failed captures never consume the lens slot); lineage remains `reviewing`; candidate tree untouched. Recovery = relaunch the slot once the reviewer environment can produce output.
-- **Decision (user, 2026-10-06):** switch the reviewer model. Applied: `"model": "opencode-go/mimo-v2.6-flash"` added to the six `review-*` agents in `~/.config/opencode/opencode.json` (backup: `opencode.json.bak-2026-10-06`; JSON re-validated). Config is not hot-reloaded → **OpenCode restart required**.
-
-### Resume instructions (after OpenCode restart)
-1. Query the frozen-binding STATUS (the relaunch slot is reoffered by the same collect):
-```
-gentle-ai review status --contract=gentle-ai.review-integration/v2 --next-transition=true --lineage=review-bb36a75575e2f86e --repository-context=rctx2_4089c5f9d34d442b9c0f417c3d29c1dddb733e6ffc1e706a6efb86ca5976654a --agent=opencode --base-ref=c7f61c0c801d837ce33148e8cae5097ca8aa5c54 --committed-only=true
-```
-2. If it reoffers `collect / reviewer_results_required`, launch the provider task (`review-reliability` agent, exact prompt from the input) — now on `mimo-v2.6-flash`.
-3. Follow STATUS transitions through capture/closure, then the reviewed boundary advances and work continues with T3.
-Caveat: a future `gentle-ai sync` / managed-asset refresh may rewrite the agent blocks and drop the `model` field — re-check and re-apply if the reviewer model regresses.
+- **7 bounded launch attempts across 2 models**, all returned typed `opencode_task_output_empty`.
+- **Root cause** (verified from OpenCode's own records and reasoning text): the gateway's reviewer models (`deepseek-v4.1-flash`, then `mimo-v2.6-flash` after the config switch + restart) both burn the **~32 K reasoning-token budget** parsing the 1 339-line candidate and finish with `finish: length`, `output: 0`, zero text parts. The reasoning sample shows meticulous line-by-line bookkeeping over a 771-line file — the candidate is simply larger than one review pass can absorb under this gateway's reasoning budget. Not a defect in T2's code; not a Gentle AI provider defect (model/provider-side behavior; gentle-ai typed it correctly).
+- **Decision (user, 2026-10-06):** after the diagnosis, pass T2 **without native review** ("Pasemos esto sin revisión, estamos en un loop infinito").
+- **Abandoned auditably:** `gentle-ai review abandon --reason operator_disposition --actor user` → reclaim record committed; lineage quarantined at `.git/gentle-ai/review-transactions/quarantine/review-bb36a75575e2f86e-3725445824` (discarded work: no captured lens results, no findings). T2 stands on test evidence under ordinary policy.
+- **Reviewer model config left in place:** the six `review-*` agents keep `opencode-go/mimo-v2.6-flash` (backup: `opencode.json.bak-2026-10-06`) for future reviews. Caveat: a future `gentle-ai sync` may rewrite managed agent blocks and drop the `model` field.
 
 ## Acceptance criteria
 - `/api/accounts` lists account(s) while a signed-in `flow.google.com` tab is open with the extension loaded.
@@ -87,7 +78,7 @@ Caveat: a future `gentle-ai sync` / managed-asset refresh may rewrite the agent 
 - Character-reference generation works via page-side upload, OR explicitly documented as deferred.
 - Envelope tests prove positional slots (aspect-ratio slot, reference slot) — the traps. ✅ (75 tests green)
 - No code path calls `/fx/api/auth/session` or `aisandbox-pa...` with a bearer.
-- T2's native review reaches a terminal outcome (approved or explicitly declined/abandoned with recorded decision).
+- T2's native review terminal outcome: ✅ explicitly abandoned with recorded audit decision (`operator_disposition`).
 
 ## Checks
 - Backend: `python -m pytest tests/` in `backend/` — baseline: `test_thumbnail_pillow.py` 22 passed, `test_thumbnail_gemini.py` 21 passed; `test_thumbnail_api.py` hangs pre-existing at `TestEventsEndpoint::test_sse_stream_starts` (SSE stream never ends) — excluded from gating until fixed separately.
@@ -101,9 +92,9 @@ Off (project precedent — Standard mode; no user TDD setting). Ordinary functio
 - 2026-10-06: diagnosis complete (Flow host move + transport change). flowkit cloned to `C:\Users\T-Gency\AppData\Local\Temp\opencode\flowkit-ref` @ `af5e058`. Task doc created; branch `feat/flow-bridge-batchexecute` from `develop` @867ae4e; doc committed (`05985e9`, RDD passive).
 - 2026-10-06: T1 recon complete — integration spec extracted.
 - 2026-10-06: project provisioning design updated to auto-create (user question).
-- 2026-10-06: T2 complete — commit `20032b9` (vendored module byte-identical + tests). RDD assess: medium, `review_due: true` → native review started; reviewer slot blocked by model reasoning-budget exhaustion after 5 attempts (see incident).
-- 2026-10-06: doc updated with incident record (commit `3b7d2e0`).
-- 2026-10-06: user decided to switch the reviewer model; applied `opencode-go/mimo-v2.6-flash` to the six `review-*` agents (config backup `opencode.json.bak-2026-10-06`); awaiting OpenCode restart to relaunch the reviewer slot.
+- 2026-10-06: T2 complete — commit `20032b9` (vendored module byte-identical + tests). RDD assess: medium, `review_due: true` → native review started; reviewer slot blocked by model reasoning-budget exhaustion (7 attempts, 2 models; see incident).
+- 2026-10-06: doc updates committed (`3b7d2e0`, `5bb2548` — RDD passive).
+- 2026-10-06: user decided to skip T2's native review; lineage abandoned with audit record (`operator_disposition`); T3 launched.
 
 ## Next step
-Restart OpenCode (config is not hot-reloaded), then relaunch the T2 reviewer slot (see Resume instructions), drive STATUS to closure, then proceed with T3.
+T3: backend wiring (delegated writer) — then T4 extension.
