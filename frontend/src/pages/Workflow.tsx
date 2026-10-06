@@ -35,12 +35,12 @@ interface WorkflowState {
 }
 
 const STAGE_CONFIG: Record<StageKey, { label: string; icon: typeof ImageIcon; color: string; description: string }> = {
-  prompts: { label: "Script y Prompts", icon: Sparkles, color: "text-pink-400", description: "Genera prompts de imagen desde el guion fragmentado" },
-  generate: { label: "Generación de Imágenes", icon: ImageIcon, color: "text-purple-400", description: "Crea escenas con las cuentas de Flow conectadas" },
-  transcribe: { label: "Transcripción", icon: Mic, color: "text-blue-400", description: "Whisper genera timestamps por palabra" },
-  render: { label: "Render", icon: Video, color: "text-green-400", description: "Ensambla el video con Ken Burns sincronizado al audio" },
-  thumbnail: { label: "Thumbnail", icon: ImageDown, color: "text-yellow-400", description: "Thumbnail de YouTube con análisis Gemini + fondo IA" },
-  metadata: { label: "Video SEO", icon: Hash, color: "text-indigo-400", description: "Títulos, descripción, tags SEO para el video completo" },
+  prompts: { label: "Script y Prompts", icon: Sparkles, color: "text-tag-pink", description: "Genera prompts de imagen desde el guion fragmentado" },
+  generate: { label: "Generación de Imágenes", icon: ImageIcon, color: "text-tag-purple", description: "Crea escenas con las cuentas de Flow conectadas" },
+  transcribe: { label: "Transcripción", icon: Mic, color: "text-tag-blue", description: "Whisper genera timestamps por palabra" },
+  render: { label: "Render", icon: Video, color: "text-ok", description: "Ensambla el video con Ken Burns sincronizado al audio" },
+  thumbnail: { label: "Thumbnail", icon: ImageDown, color: "text-warn", description: "Thumbnail de YouTube con análisis Gemini + fondo IA" },
+  metadata: { label: "Video SEO", icon: Hash, color: "text-tag-purple", description: "Títulos, descripción, tags SEO para el video completo" },
 }
 
 const LOG_RING_MAX = 50
@@ -394,21 +394,21 @@ export default function Workflow() {
   return (
     <div className="space-y-6 animate-slide-down">
       {/* ── Topbar (Task 2.1) ── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="flex items-end justify-between gap-4 flex-wrap pb-5 border-b border-border">
         <div className="min-w-0">
           {project && (
-            <p className="text-[11px] uppercase tracking-wide text-gray-600 font-mono mb-1 truncate">
+            <p className="page-eyebrow mb-2 truncate">
               {project.title || project.name}
             </p>
           )}
-          <h1 className="text-2xl font-bold text-foreground dark:text-white">Workflow Control Room</h1>
-          <p className="mt-1 text-sm text-gray-500 font-body">
+          <h1 className="page-title text-[clamp(26px,3.2vw,40px)]">Workflow Control Room</h1>
+          <p className="mt-1.5 text-[13.5px] text-ink-dim font-body">
             Pipeline completo: prompts → imágenes → transcripción → render → thumbnail → metadata SEO
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           {isRunning ? (
-            <button className="btn-secondary !bg-red-600/10 !border-red-500/30 hover:!bg-red-600/20 text-red-400" onClick={() => setShowCancelModal(true)}>
+            <button className="btn-secondary !bg-danger/10 !border-danger/30 hover:!bg-danger/20 text-danger" onClick={() => setShowCancelModal(true)}>
               <Square className="w-4 h-4" />
               Cancel
             </button>
@@ -432,27 +432,27 @@ export default function Workflow() {
               </span>
             )}
             {isIdle && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-surface-hover text-gray-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-500" /> Idle
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-surface-hover text-ink-dim">
+                <span className="w-1.5 h-1.5 rounded-full bg-ink-faint" /> Idle
               </span>
             )}
             {isCompleted && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-500/15 text-green-400">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-ok/15 text-ok">
                 <CheckCircle className="w-3 h-3" /> Completed
               </span>
             )}
             {isFailed && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/15 text-red-400">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-danger/15 text-danger">
                 <XCircle className="w-3 h-3" /> {workflow.status === "cancelled" ? "Cancelled" : "Failed"}
               </span>
             )}
             {/* Accounts connected */}
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-surface-hover text-gray-400">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-surface-hover text-ink-dim">
               <Users className="w-3 h-3" /> {connectedAccounts} cuenta{connectedAccounts !== 1 ? "s" : ""}
             </span>
             {/* Elapsed */}
             {isRunning && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono text-gray-400">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono text-ink-dim">
                 {Math.floor(elapsed / 60)}m {elapsed % 60}s
               </span>
             )}
@@ -465,7 +465,7 @@ export default function Workflow() {
           {/* Thumbnail toggle (preserved) */}
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-2 cursor-pointer select-none">
-              <span className="text-xs text-gray-400">Thumbnail</span>
+              <span className="text-xs text-ink-dim">Thumbnail</span>
               <input
                 type="checkbox"
                 className="sr-only peer"
@@ -477,13 +477,13 @@ export default function Workflow() {
             {generateThumbnail && (
               <div className="flex gap-1 bg-surface-hover rounded-lg p-0.5">
                 <button
-                  className={`px-2.5 py-1 text-xs rounded-md transition-all ${thumbnailMode === "single" ? "bg-accent/20 text-accent border border-accent/30" : "text-gray-500 hover:text-foreground dark:hover:text-white"}`}
+                  className={`px-2.5 py-1 text-xs rounded-md transition-all ${thumbnailMode === "single" ? "bg-accent/20 text-accent border border-accent/30" : "text-ink-dim hover:text-ink hover:text-ink"}`}
                   onClick={() => setThumbnailMode("single")}
                 >
                   Single
                 </button>
                 <button
-                  className={`px-2.5 py-1 text-xs rounded-md transition-all ${thumbnailMode === "ab_testing" ? "bg-accent/20 text-accent border border-accent/30" : "text-gray-500 hover:text-foreground dark:hover:text-white"}`}
+                  className={`px-2.5 py-1 text-xs rounded-md transition-all ${thumbnailMode === "ab_testing" ? "bg-accent/20 text-accent border border-accent/30" : "text-ink-dim hover:text-ink hover:text-ink"}`}
                   onClick={() => setThumbnailMode("ab_testing")}
                 >
                   A/B
@@ -493,7 +493,7 @@ export default function Workflow() {
           </div>
         </div>
         {isFailed && workflow.error && (
-          <p className="mt-3 text-xs text-red-400/80 border-t border-red-500/20 pt-3">
+          <p className="mt-3 text-xs text-danger/80 border-t border-danger/20 pt-3">
             {workflow.error}
           </p>
         )}
@@ -515,7 +515,7 @@ export default function Workflow() {
           value={errors.images ? "—" : `${kpis.images.generated}/${kpis.images.total}`}
           subtitle={errors.images ? "Unavailable" : `${kpis.images.total - kpis.images.generated} pendientes${kpis.images.failed ? `, ${kpis.images.failed} fallidas` : ""}`}
           error={!!errors.images}
-          accent="text-purple-400"
+          accent="text-tag-purple"
         />
         <KpiCard
           icon={<Mic className="w-4 h-4" />}
@@ -523,7 +523,7 @@ export default function Workflow() {
           value={errors.transcription ? "—" : kpis.audio.ready ? "Ready" : "Pending"}
           subtitle={errors.transcription ? "Unavailable" : kpis.audio.ready ? `${kpis.audio.words ?? 0} palabras` : "Sin transcripción"}
           error={!!errors.transcription}
-          accent="text-blue-400"
+          accent="text-tag-blue"
         />
         <KpiCard
           icon={<Video className="w-4 h-4" />}
@@ -531,7 +531,7 @@ export default function Workflow() {
           value={errors.renderState ? "—" : kpis.output.hasVideo ? "1" : "0"}
           subtitle={errors.renderState ? "Unavailable" : kpis.output.hasVideo ? "Render final listo" : "Render final pendiente"}
           error={!!errors.renderState}
-          accent="text-green-400"
+          accent="text-ok"
         />
       </div>
 
@@ -541,7 +541,7 @@ export default function Workflow() {
         <Card>
           <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
             <Activity className="w-4 h-4 text-accent" />
-            <h2 className="text-sm font-semibold text-foreground dark:text-white font-sans">Pipeline Stages</h2>
+            <h2 className="text-sm font-semibold text-ink font-sans">Pipeline Stages</h2>
           </div>
           <div className="space-y-3">
             {(Object.keys(STAGE_CONFIG) as StageKey[]).map((stageKey, index) => {
@@ -557,23 +557,23 @@ export default function Workflow() {
                     isCurrentStage
                       ? "ring-1 ring-accent/50 border-accent/30 bg-accent/5"
                       : stage.status === "completed"
-                        ? "border-green-500/15 bg-green-500/[0.03]"
+                        ? "border-ok/15 bg-ok/[0.03]"
                         : stage.status === "failed"
-                          ? "border-red-500/20 bg-red-500/[0.03]"
+                          ? "border-danger/20 bg-danger/[0.03]"
                           : "border-border"
                   } ${isThumbnailOptional ? "opacity-60" : ""}`}
                 >
                   {/* Icon box */}
                   <div className={`p-2.5 rounded-lg shrink-0 ${
-                    stage.status === "completed" ? "bg-green-500/10" :
+                    stage.status === "completed" ? "bg-ok/10" :
                     stage.status === "running" ? "bg-accent/10" :
-                    stage.status === "failed" ? "bg-red-500/10" :
+                    stage.status === "failed" ? "bg-danger/10" :
                     "bg-surface-hover"
                   }`}>
                     {stage.status === "completed" ? (
-                      <CheckCircle className="w-5 h-5 text-green-400" />
+                      <CheckCircle className="w-5 h-5 text-ok" />
                     ) : stage.status === "failed" ? (
-                      <XCircle className="w-5 h-5 text-red-400" />
+                      <XCircle className="w-5 h-5 text-danger" />
                     ) : stage.status === "running" ? (
                       <Loader2 className="w-5 h-5 text-accent animate-spin" />
                     ) : (
@@ -583,25 +583,25 @@ export default function Workflow() {
                   {/* Middle: title + desc + progress */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-[10px] text-gray-600 font-mono">{index + 1}</span>
-                      <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans truncate">{config.label}</h3>
+                      <span className="text-[10px] text-ink-faint font-mono">{index + 1}</span>
+                      <h3 className="text-sm font-semibold text-ink font-sans truncate">{config.label}</h3>
                     </div>
-                    <p className="text-xs text-gray-500 leading-snug">
+                    <p className="text-xs text-ink-dim leading-snug">
                       {isThumbnailOptional ? "Optional — enable en settings" : config.description}
                     </p>
                     {stage.status === "running" && (
                       <div className="mt-2">
                         <ProgressBar progress={stage.progress * 100} />
-                        {stage.message && <p className="text-[11px] text-gray-500 mt-1.5 truncate">{stage.message}</p>}
+                        {stage.message && <p className="text-[11px] text-ink-dim mt-1.5 truncate">{stage.message}</p>}
                       </div>
                     )}
                     {stage.status === "completed" && stageTimings[stageKey]?.duration_s && (
-                      <p className="text-[11px] text-green-400/80 mt-1">
+                      <p className="text-[11px] text-ok/80 mt-1">
                         Completado · {Math.round(stageTimings[stageKey].duration_s / 60)}m {Math.round(stageTimings[stageKey].duration_s % 60)}s
                       </p>
                     )}
                     {stage.status === "failed" && (
-                      <p className="text-[11px] text-red-400/80 mt-1 truncate" title={workflow.error ?? ""}>
+                      <p className="text-[11px] text-danger/80 mt-1 truncate" title={workflow.error ?? ""}>
                         {workflow.error ?? "Failed"}
                       </p>
                     )}
@@ -611,21 +611,21 @@ export default function Workflow() {
                     {stage.status === "completed" && (
                       stageKey === "metadata" && projectId ? (
                         <Link to={`/metadata/${projectId}`}
-                          className="px-2 py-1 text-xs font-medium text-indigo-400 bg-indigo-500/10 rounded hover:bg-indigo-500/20 transition-colors">
+                          className="px-2 py-1 text-xs font-medium text-tag-purple bg-tag-purple/10 rounded hover:bg-tag-purple/20 transition-colors">
                           View
                         </Link>
                       ) : (
-                        <span className="px-2 py-1 text-xs font-medium text-green-400 bg-green-500/10 rounded">Done</span>
+                        <span className="px-2 py-1 text-xs font-medium text-ok bg-ok/10 rounded">Done</span>
                       )
                     )}
                     {stage.status === "running" && (
                       <span className="px-2 py-1 text-xs font-medium text-accent bg-accent/10 rounded">{Math.round(stage.progress * 100)}%</span>
                     )}
                     {stage.status === "failed" && (
-                      <span className="px-2 py-1 text-xs font-medium text-red-400 bg-red-500/10 rounded">Failed</span>
+                      <span className="px-2 py-1 text-xs font-medium text-danger bg-danger/10 rounded">Failed</span>
                     )}
                     {stage.status === "idle" && (
-                      <span className="px-2 py-1 text-xs font-medium text-gray-600 bg-surface-hover rounded">Pending</span>
+                      <span className="px-2 py-1 text-xs font-medium text-ink-faint bg-surface-hover rounded">Pending</span>
                     )}
                   </div>
                 </div>
@@ -635,14 +635,14 @@ export default function Workflow() {
           {/* How it works (only when idle) */}
           {isIdle && (
             <div className="mt-4 pt-4 border-t border-border">
-              <h3 className="text-sm font-semibold text-foreground dark:text-white mb-2 font-sans">How it works</h3>
-              <ol className="space-y-1.5 text-xs text-gray-400">
-                <li className="flex gap-2"><span className="text-accent font-mono">1.</span><span><strong className="text-gray-300">Prompts:</strong> Crea prompts desde el guion con Gemini/OpenRouter</span></li>
-                <li className="flex gap-2"><span className="text-accent font-mono">2.</span><span><strong className="text-gray-300">Imágenes:</strong> Genera escenas con la Forge bridge vía cuentas de Flow</span></li>
-                <li className="flex gap-2"><span className="text-accent font-mono">3.</span><span><strong className="text-gray-300">Transcribe:</strong> Whisper con timestamps por palabra</span></li>
-                <li className="flex gap-2"><span className="text-accent font-mono">4.</span><span><strong className="text-gray-300">Render:</strong> Ken Burns sincronizado al audio</span></li>
-                <li className="flex gap-2"><span className="text-accent font-mono">5.</span><span><strong className="text-gray-300">Thumbnail:</strong> (Opcional) Gemini análisis + background IA</span></li>
-                <li className="flex gap-2"><span className="text-accent font-mono">6.</span><span><strong className="text-gray-300">Video SEO:</strong> Títulos, descripción, tags, capítulos con Gemini Web</span></li>
+              <h3 className="text-sm font-semibold text-ink mb-2 font-sans">How it works</h3>
+              <ol className="space-y-1.5 text-xs text-ink-dim">
+                <li className="flex gap-2"><span className="text-accent font-mono">1.</span><span><strong className="text-ink-dim">Prompts:</strong> Crea prompts desde el guion con Gemini/OpenRouter</span></li>
+                <li className="flex gap-2"><span className="text-accent font-mono">2.</span><span><strong className="text-ink-dim">Imágenes:</strong> Genera escenas con la Forge bridge vía cuentas de Flow</span></li>
+                <li className="flex gap-2"><span className="text-accent font-mono">3.</span><span><strong className="text-ink-dim">Transcribe:</strong> Whisper con timestamps por palabra</span></li>
+                <li className="flex gap-2"><span className="text-accent font-mono">4.</span><span><strong className="text-ink-dim">Render:</strong> Ken Burns sincronizado al audio</span></li>
+                <li className="flex gap-2"><span className="text-accent font-mono">5.</span><span><strong className="text-ink-dim">Thumbnail:</strong> (Opcional) Gemini análisis + background IA</span></li>
+                <li className="flex gap-2"><span className="text-accent font-mono">6.</span><span><strong className="text-ink-dim">Video SEO:</strong> Títulos, descripción, tags, capítulos con Gemini Web</span></li>
               </ol>
             </div>
           )}
@@ -654,7 +654,7 @@ export default function Workflow() {
           <Card>
             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
               <CheckCircle className="w-4 h-4 text-accent" />
-              <h2 className="text-sm font-semibold text-foreground dark:text-white font-sans">Readiness</h2>
+              <h2 className="text-sm font-semibold text-ink font-sans">Readiness</h2>
             </div>
             <div className="space-y-2.5">
               {readiness.map((check) => {
@@ -662,24 +662,24 @@ export default function Workflow() {
                 return (
                   <div key={check.id} className="flex items-start gap-3">
                     {ok ? (
-                      <CheckCircle className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
+                      <CheckCircle className="w-4 h-4 text-ok shrink-0 mt-0.5" />
                     ) : (
-                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <AlertTriangle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm text-foreground dark:text-white font-sans">{check.label}</p>
+                        <p className="text-sm text-ink font-sans">{check.label}</p>
                         {ok ? (
-                          <span className="px-1.5 py-0.5 text-[10px] font-medium text-green-400 bg-green-500/10 rounded">OK</span>
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium text-ok bg-ok/10 rounded">OK</span>
                         ) : check.action?.to ? (
-                          <Link to={check.action.to} className="px-1.5 py-0.5 text-[10px] font-medium text-amber-400 bg-amber-500/10 rounded hover:bg-amber-500/20 transition-colors">
+                          <Link to={check.action.to} className="px-1.5 py-0.5 text-[10px] font-medium text-warn bg-warn/10 rounded hover:bg-warn/20 transition-colors">
                             {check.action.label}
                           </Link>
                         ) : (
-                          <span className="px-1.5 py-0.5 text-[10px] font-medium text-amber-400 bg-amber-500/10 rounded">Fix</span>
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium text-warn bg-warn/10 rounded">Fix</span>
                         )}
                       </div>
-                      <p className="text-[11px] text-gray-500 mt-0.5">{check.description}</p>
+                      <p className="text-[11px] text-ink-dim mt-0.5">{check.description}</p>
                     </div>
                   </div>
                 )
@@ -692,10 +692,10 @@ export default function Workflow() {
             <div className="flex items-center justify-between mb-3 pb-2 border-b border-border">
               <div className="flex items-center gap-2">
                 <Camera className="w-4 h-4 text-accent" />
-                <h2 className="text-sm font-semibold text-foreground dark:text-white font-sans">Scene Preview</h2>
+                <h2 className="text-sm font-semibold text-ink font-sans">Scene Preview</h2>
               </div>
               {projectId && recentScenes.length > 0 && (
-                <Link to={`/images/${projectId}`} className="text-[11px] text-gray-500 hover:text-accent flex items-center gap-1">
+                <Link to={`/images/${projectId}`} className="text-[11px] text-ink-dim hover:text-accent flex items-center gap-1">
                   Ver todas <RefreshCw className="w-3 h-3" />
                 </Link>
               )}
@@ -737,7 +737,7 @@ export default function Workflow() {
             <div className="flex items-center justify-between mb-3 pb-2 border-b border-border">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-accent" />
-                <h2 className="text-sm font-semibold text-foreground dark:text-white font-sans">Live Run Log</h2>
+                <h2 className="text-sm font-semibold text-ink font-sans">Live Run Log</h2>
               </div>
               {isRunning && (
                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent/15 text-accent">
@@ -746,20 +746,20 @@ export default function Workflow() {
               )}
             </div>
             {logRef.current.length === 0 ? (
-              <p className="text-xs text-gray-600 text-center py-6">
-                El log se actualiza en vivo al ejecutar el workflow. <span className="block mt-1 text-gray-700">(Live log se resetea al recargar)</span>
+              <p className="text-xs text-ink-faint text-center py-6">
+                El log se actualiza en vivo al ejecutar el workflow. <span className="block mt-1 text-ink-faint">(Live log se resetea al recargar)</span>
               </p>
             ) : (
               <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
                 {logRef.current.map((entry, i) => (
                   <div key={i} className="flex items-start gap-2 text-xs font-mono">
-                    <span className="text-gray-700 shrink-0">
+                    <span className="text-ink-faint shrink-0">
                       {new Date(entry.timestamp).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                     </span>
-                    <span className={`shrink-0 ${entry.level === "error" ? "text-red-400" : entry.level === "warn" ? "text-amber-400" : "text-gray-400"}`}>
+                    <span className={`shrink-0 ${entry.level === "error" ? "text-danger" : entry.level === "warn" ? "text-warn" : "text-ink-dim"}`}>
                       ›
                     </span>
-                    <span className={`min-w-0 break-words ${entry.level === "error" ? "text-red-300" : entry.level === "warn" ? "text-amber-300" : "text-gray-300"}`}>
+                    <span className={`min-w-0 break-words ${entry.level === "error" ? "text-danger" : entry.level === "warn" ? "text-warn" : "text-ink-dim"}`}>
                       {entry.message}
                     </span>
                   </div>
@@ -771,10 +771,10 @@ export default function Workflow() {
       </div>
 
       <Modal open={showCancelModal} onClose={() => setShowCancelModal(false)} title="Cancel Workflow">
-        <p className="text-sm text-gray-300 mb-6">¿Seguro que quieres cancelar el workflow actual? No se puede deshacer.</p>
+        <p className="text-sm text-ink-dim mb-6">¿Seguro que quieres cancelar el workflow actual? No se puede deshacer.</p>
         <div className="flex justify-end gap-3">
           <button className="btn-secondary" onClick={() => setShowCancelModal(false)}>Keep Running</button>
-          <button className="btn-primary !bg-red-600 !border-red-600 hover:!bg-red-700" onClick={handleCancelConfirm}>Yes, Cancel</button>
+          <button className="btn-primary !bg-danger !border-danger hover:!bg-danger" onClick={handleCancelConfirm}>Yes, Cancel</button>
         </div>
       </Modal>
     </div>
@@ -805,14 +805,14 @@ function KpiCard({ icon, label, value, subtitle, error, accent = "text-accent" }
     <Card>
       <div className="flex items-center gap-2 mb-2">
         <span className={accent}>{icon}</span>
-        <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">{label}</span>
+        <span className="text-xs text-ink-dim font-medium uppercase tracking-wide">{label}</span>
       </div>
       {error ? (
         <EmptyState icon={<AlertTriangle className="w-6 h-6" />} title="Unavailable" description="Failed to load" />
       ) : (
         <>
-          <p className="text-2xl font-bold text-foreground dark:text-white font-sans">{value}</p>
-          <p className="text-xs text-gray-500 mt-1 truncate">{subtitle}</p>
+          <p className="text-2xl font-bold text-ink font-sans">{value}</p>
+          <p className="text-xs text-ink-dim mt-1 truncate">{subtitle}</p>
         </>
       )}
     </Card>

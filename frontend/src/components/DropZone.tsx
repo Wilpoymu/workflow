@@ -28,7 +28,7 @@ export default function DropZone({ accept, multiple, label, hint, onFiles }: Dro
         border-2 border-dashed rounded-xl p-10 text-center cursor-pointer
         transition-all duration-200
         ${dragging
-          ? "border-accent bg-accent/8 glow-teal-sm"
+          ? "border-accent bg-accent/10 glow-teal-sm"
           : "border-border hover:border-accent/30 hover:bg-surface-hover/50"
         }`}
       onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
@@ -46,13 +46,13 @@ export default function DropZone({ accept, multiple, label, hint, onFiles }: Dro
       }}
     >
       <div className={`p-3 rounded-full transition-colors duration-200
-        ${dragging ? "bg-accent/15 text-accent" : "bg-surface-hover text-gray-500"}`}
+        ${dragging ? "bg-accent/15 text-accent" : "bg-surface-hover text-ink-dim"}`}
       >
         <Upload className="w-6 h-6" />
       </div>
       <div>
-        <p className="text-sm font-medium text-gray-300">{label}</p>
-        {hint && <p className="mt-1 text-xs text-gray-600">{hint}</p>}
+        <p className="text-sm font-medium text-ink-dim">{label}</p>
+        {hint && <p className="mt-1 text-xs text-ink-faint">{hint}</p>}
       </div>
     </div>
   )

@@ -1,30 +1,80 @@
 import asyncio
 import json
 import logging
-import random
 import time
 import uuid
 from typing import Awaitable, Callable
 
-import httpx
 import websockets
 from websockets.asyncio.server import ServerConnection
 
+from app.config import settings
 from app.core.sse import sse_manager
+from app.services import flow_batch as fb
+from app.services import flow_projects
 
 logger = logging.getLogger(__name__)
 
 SaveImageFn = Callable[[str, int, dict], Awaitable[bool]]
 
+#: Accounts that answered PUBLIC_ERROR_UNUSUAL_ACTIVITY are parked this long
+#: before the bridge hands them new work. That error is a session-score signal,
+#: not a per-request one: retrying immediately makes the next call worse.
+ACCOUNT_COOLDOWN_S = 120
 
-FLOW_UPLOAD_URL = "https://aisandbox-pa.googleapis.com/v1/flow/uploadImage"
+
+def _legacy_image_payload(img: fb.GeneratedImage) -> dict:
+    """Wrap a generated image in the payload shape save_image() consumes."""
+    return {
+        "media": [
+            {
+                "image": {
+                    "generatedImage": {
+                        "mediaId": img.media_id,
+                        "fifeUrl": img.url,
+                    }
+                }
+            }
+        ]
+    }
+
+
+def _parse_generated_image(raw_data: str) -> fb.GeneratedImage:
+    """Read the first generated image out of a raw batchexecute response."""
+    payload = fb.first_payload(raw_data or "", fb.RPC_GEN_IMAGE)
+    images = fb.read_images(payload)
+    if not images:
+        raise fb.FlowBatchError("batchexecute response carried no generated image")
+    return images[0]
+
+
+def _failure_text(raw_data, error: str = "") -> str:
+    """Human-readable failure text: extension error first, raw data second."""
+    text = str(error or "").strip()
+    if not text:
+        text = str(raw_data or "").strip()
+    if not text:
+        return "Flow request failed without an error message"
+    return text[:300]
+
+
+# The new Flow API rejects the legacy NARWHAL and PINHOLE model ids with a
+# generic batchexecute error slot [5] (observed live 2026-10-06). The working
+# image models are GEM_PIX_2 and HARBOR_SEAL; legacy values are mapped here.
+_LEGACY_IMAGE_MODELS = {"NARWHAL": "GEM_PIX_2", "PINHOLE": "GEM_PIX_2"}
+
+
+def _model_for_api(model: str | None) -> str | None:
+    """Resolve legacy image-model names to ids the new Flow API accepts."""
+    if not model:
+        return model
+    return _LEGACY_IMAGE_MODELS.get(model.strip().upper(), model)
 
 
 class ForgeBridge:
     def __init__(self):
         self.accounts: dict[str, ServerConnection] = {}
         self._account_emails: dict[str, str] = {}
-        self._account_tokens: dict[str, str] = {}       # account_hash -> bearer token
         self._pending: list[dict] = []
         self._server = None
         self._save_image: SaveImageFn | None = None
@@ -32,6 +82,10 @@ class ForgeBridge:
         self._pending_chunks: dict[str, list[list]] = {}
         self._batch_events: dict[str, asyncio.Event] = {}
         self._reference_media_ids: dict[str, list[str]] = {}  # project_id -> [media_id, ...]
+        self._rpc_pending: dict[str, asyncio.Future] = {}     # rpc id -> result future
+        self._rpc_accounts: dict[str, str] = {}               # rpc id -> account hash
+        self._account_cooldown: dict[str, float] = {}         # account_hash -> unix ts
+        self._flow_projects_path = flow_projects.DEFAULT_STORE_PATH
 
     def set_save_image(self, fn: SaveImageFn):
         self._save_image = fn
@@ -50,18 +104,6 @@ class ForgeBridge:
             logger.info("[ACCOUNTS]   %s: %s (connected=%s)", a["hash"][:12], a["email"], a["connected"])
         return accounts
 
-    def register_account_email(self, account_hash: str, email: str):
-        self._account_emails[account_hash] = email
-
-    def register_account_token(self, account_hash: str, token: str):
-        """Store bearer token for an account (received from Chrome extension auto-auth)."""
-        if token:
-            self._account_tokens[account_hash] = token
-            logger.info("[BRIDGE] Token stored for account %s", account_hash[:12])
-
-    def get_account_token(self, account_hash: str) -> str | None:
-        return self._account_tokens.get(account_hash)
-
     def get_reference_media_ids(self, project_id: str) -> list[str]:
         return self._reference_media_ids.get(project_id, [])
 
@@ -69,35 +111,6 @@ class ForgeBridge:
         """Clear stored reference media IDs for a project."""
         self._reference_media_ids.pop(project_id, None)
         logger.info("[BRIDGE] Cleared reference media IDs for %s", project_id)
-
-    async def _upload_reference_direct(self, image_bytes_b64: str, bearer_token: str) -> str | None:
-        """Upload reference image directly to Flow API using bearer token (like FlowForge-v2)."""
-        headers = {
-            "Authorization": f"Bearer {bearer_token}",
-            "Content-Type": "application/json",
-        }
-        body = {
-            "clientContext": {"tool": "PINHOLE"},
-            "imageBytes": image_bytes_b64,
-            "isUserUploaded": True,
-            "fileName": "reference.png",
-            "mimeType": "image/png",
-        }
-        try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(FLOW_UPLOAD_URL, headers=headers, json=body)
-                if resp.status_code != 200:
-                    logger.warning("[REF] Direct upload failed: HTTP %d", resp.status_code)
-                    return None
-                data = resp.json()
-                name = data.get("media", {}).get("name")
-                if name:
-                    return name
-                logger.warning("[REF] Direct upload: no media name in response")
-                return None
-        except Exception as e:
-            logger.warning("[REF] Direct upload error: %s", e)
-            return None
 
     async def serve(self, host: str = "127.0.0.1", port: int = 8766):
         self._server = await websockets.serve(self._handler, host, port)
@@ -109,157 +122,118 @@ class ForgeBridge:
             await self._server.wait_closed()
             logger.info("Forge bridge WS server stopped")
 
-    async def dispatch_thumbnail(
-        self,
-        project_id: str,
-        thumbnail_prompt: str,
-        model: str = "NARWHAL",
-    ) -> str | None:
-        """Dispatch a SINGLE Flow request for thumbnail background generation.
+    # ── batchexecute RPC transport ──────────────────────────────────────────
 
-        Uses the existing dispatch infrastructure but for a single image request.
-        Returns the fifeUrl of the generated image, or None on failure.
+    def _available_accounts(self, selected_accounts: list[str] | None = None) -> list[tuple[str, ServerConnection]]:
+        """Connected accounts, skipping any parked by an UNUSUAL_ACTIVITY cooldown."""
+        now = time.time()
+        cooling = [h for h in self.accounts if self._account_cooldown.get(h, 0) > now]
+        if cooling:
+            logger.info("[BRIDGE] Skipping %d cooling account(s): %s", len(cooling), [h[:12] for h in cooling])
+        available = [(h, ws) for h, ws in self.accounts.items() if self._account_cooldown.get(h, 0) <= now]
+        if selected_accounts:
+            available = [(h, ws) for h, ws in available if h in selected_accounts]
+        return available
 
-        Args:
-            project_id: Project identifier.
-            thumbnail_prompt: Text prompt for background image generation.
-            model: Flow model name (default: NARWHAL).
-
-        Returns:
-            fifeUrl string if successful, None otherwise.
-        """
-        if not self.accounts:
-            logger.warning("[THUMBNAIL] No accounts connected for dispatch")
-            return None
-
-        # Build a synthetic fragment object
-        class _ThumbnailFragment:
-            fragment_id = 9999
-            image_prompt = thumbnail_prompt
-
-        fragments = [_ThumbnailFragment()]
-        batch_id = uuid.uuid4().hex[:8]
-        flow_project_id = uuid.uuid4().hex
-        base_url = f"https://aisandbox-pa.googleapis.com/v1/projects/{flow_project_id}/flowMedia:batchGenerateImages"
-        session_id = f";{int(time.time() * 1000)}"
-
-        req = {
-            "clientContext": {
-                "projectId": flow_project_id,
-                "tool": "PINHOLE",
-                "sessionId": session_id,
-            },
-            "imageModelName": model,
-            "imageAspectRatio": "IMAGE_ASPECT_RATIO_LANDSCAPE",
-            "structuredPrompt": {
-                "parts": [{"text": thumbnail_prompt}],
-            },
-            "seed": random.randint(1, 999999),
-        }
-        req["imageInputs"] = []
-
-        body = {
-            "clientContext": {
-                "projectId": flow_project_id,
-                "tool": "PINHOLE",
-                "sessionId": session_id,
-            },
-            "mediaGenerationContext": {
-                "batchId": batch_id,
-            },
-            "useNewMedia": True,
-            "requests": [req],
-        }
-
-        requests_list = [{
-            "requestId": "9999",
-            "url": base_url,
-            "body": body,
-            "prompt": thumbnail_prompt,
-        }]
-
-        logger.info(
-            "[THUMBNAIL] dispatch: batch=%s project=%s prompt=%.60s",
-            batch_id, project_id, thumbnail_prompt[:60],
+    def _cool_down(self, account_hash: str | None):
+        if not account_hash:
+            return
+        self._account_cooldown[account_hash] = time.time() + ACCOUNT_COOLDOWN_S
+        logger.warning(
+            "[BRIDGE] Account %s hit PUBLIC_ERROR_UNUSUAL_ACTIVITY — cooling down for %ds",
+            account_hash[:12], ACCOUNT_COOLDOWN_S,
         )
 
-        # Set up batch state
-        state = {
-            "batch_id": batch_id,
-            "project_id": project_id,
-            "project_dir": "",
-            "requests": requests_list,
-            "total": 1,
-            "done": 0,
-            "failed": 0,
-            "model": model,
-            "results": {},
-            "accounts_used": [],
-        }
-        self._batch_results[batch_id] = state
+    def _fail_pending_rpcs(self, account_hash: str):
+        """Fail in-flight RPC futures promptly when their WS connection drops."""
+        for rpc_id, acc in list(self._rpc_accounts.items()):
+            if acc != account_hash:
+                continue
+            self._rpc_accounts.pop(rpc_id, None)
+            fut = self._rpc_pending.pop(rpc_id, None)
+            if fut and not fut.done():
+                fut.set_exception(
+                    RuntimeError(f"WS closed while awaiting rpc on account {account_hash[:12]}")
+                )
 
-        # Send to first available account
-        available = list(self.accounts.items())
-        if not available:
-            logger.warning("[THUMBNAIL] No accounts available")
-            self._batch_results.pop(batch_id, None)
-            return None
+    async def _rpc_over_ws(
+        self,
+        account_hash: str,
+        rpcid: str,
+        freq: str,
+        captcha_action: str | None = None,
+        timeout: float = 60,
+    ) -> dict:
+        """Send one RPC to an extension and await its ``rpc_result`` reply.
 
-        acc_hash, ws = available[0]
+        The extension signs and issues the call inside the Flow tab (fresh
+        reCAPTCHA per call); the backend only moves envelopes.
+        """
+        ws = self.accounts.get(account_hash)
+        if ws is None:
+            raise RuntimeError(f"account {account_hash[:12]} is not connected")
+        rpc_id = str(uuid.uuid4())
+        fut = asyncio.get_running_loop().create_future()
+        self._rpc_pending[rpc_id] = fut
+        self._rpc_accounts[rpc_id] = account_hash
+        msg = {"type": "rpc", "id": rpc_id, "rpcid": rpcid, "freq": freq}
+        if captcha_action:
+            msg["captchaAction"] = captcha_action
         try:
-            await ws.send(json.dumps({
-                "type": "generate", "batchId": batch_id, "requests": requests_list,
-            }))
-            logger.info("[THUMBNAIL] Sent single request to account %s", acc_hash[:12])
-        except websockets.exceptions.ConnectionClosed:
-            self.accounts.pop(acc_hash, None)
-            self._batch_results.pop(batch_id, None)
-            return None
-
-        # Wait for result (shorter timeout for thumbnail)
-        evt = asyncio.Event()
-        self._batch_events[batch_id] = evt
-        try:
-            await asyncio.wait_for(evt.wait(), timeout=120)
+            await ws.send(json.dumps(msg))
+            return await asyncio.wait_for(fut, timeout=timeout)
+        except websockets.exceptions.ConnectionClosed as e:
+            raise RuntimeError(
+                f"WS closed while sending {rpcid} to account {account_hash[:12]}"
+            ) from e
         except asyncio.TimeoutError:
-            self._batch_events.pop(batch_id, None)
-            self._batch_results.pop(batch_id, None)
-            logger.warning("[THUMBNAIL] Batch %s timed out", batch_id)
-            return None
+            raise TimeoutError(
+                f"{rpcid} timed out after {timeout:g}s on account {account_hash[:12]}"
+            ) from None
+        finally:
+            self._rpc_pending.pop(rpc_id, None)
+            self._rpc_accounts.pop(rpc_id, None)
 
-        # _handle_result modifies `state` in-place and may have already popped it
-        # from self._batch_results — but our local `state` reference still has the data
-        self._batch_events.pop(batch_id, None)
-        self._pending_chunks.pop(batch_id, None)
-        self._batch_results.pop(batch_id, None)
+    # ── Flow project provisioning ───────────────────────────────────────────
 
-        result = state.get("results", {}).get("9999", {})
-        if not result.get("success"):
-            logger.warning("[THUMBNAIL] Flow request failed for batch %s", batch_id)
-            return None
+    async def project_id_for(self, account_hash: str) -> str:
+        """Resolve (or create + persist) this account's Flow project id."""
+        store = flow_projects.load_store(self._flow_projects_path)
+        project_id = flow_projects.resolve_project_id(
+            account_hash,
+            settings_project_id=settings.flow_project_id,
+            store=store,
+        )
+        if project_id:
+            return project_id
 
-        raw_data = result.get("data", "")
-        parsed = raw_data
-        if isinstance(raw_data, str):
-            try:
-                parsed = json.loads(raw_data)
-            except (json.JSONDecodeError, TypeError):
-                pass
+        if account_hash not in self.accounts:
+            raise RuntimeError(f"cannot provision Flow project: account {account_hash[:12]} is not connected")
 
-        try:
-            media_list = parsed.get("media", []) if isinstance(parsed, dict) else []
-            if media_list and isinstance(media_list, list):
-                first = media_list[0]
-                img = first.get("image", {})
-                gen = img.get("generatedImage", {})
-                fife_url = gen.get("fifeUrl")
-                if fife_url:
-                    logger.info("[THUMBNAIL] Got fifeUrl: %.100s", fife_url)
-                    return fife_url
-        except Exception as e:
-            logger.warning("[THUMBNAIL] Failed to parse Flow response: %s", e)
+        email = self._account_emails.get(account_hash) or "account"
+        raw = await self._rpc_over_ws(
+            account_hash,
+            fb.RPC_CREATE_PROJECT,
+            fb.create_project_request("Workflow " + email[:60]),
+            None,
+            30,
+        )
+        if not raw.get("success"):
+            raise RuntimeError(
+                f"create project failed on account {account_hash[:12]}: "
+                f"{raw.get('error') or raw.get('status')}"
+            )
+        project_id, _title = fb.read_created_project(
+            fb.first_payload(raw.get("data", ""), fb.RPC_CREATE_PROJECT)
+        )
+        project_id = str(project_id or "").strip()
+        if not project_id:
+            raise fb.FlowBatchError("create project response carried no project id")
+        flow_projects.remember_project_id(account_hash, project_id, self._flow_projects_path)
+        logger.info("[BRIDGE] Provisioned Flow project %s for account %s", project_id, account_hash[:12])
+        return project_id
 
-        return None
+    # ── dispatch ────────────────────────────────────────────────────────────
 
     async def dispatch(
         self,
@@ -267,100 +241,40 @@ class ForgeBridge:
         project_dir: str,
         fragments: list,
         batch_id: str,
-        model: str = "NARWHAL",
+        model: str = "GEM_PIX_2",
         concurrency: int = 2,
         selected_accounts: list[str] | None = None,
         reference_image_ids: list[str] | None = None,
         reference_image_bytes: list[str] | None = None,
     ) -> int:
-        # Upload reference images to Flow BEFORE generation (via Python, like FlowForge-v2)
-        all_ref_ids = list(reference_image_ids or [])
-        if reference_image_bytes and self.accounts:
-            logger.info("[DISPATCH] Uploading %d reference images to Flow...", len(reference_image_bytes))
-            for acc_hash in self.accounts:
-                token = self.get_account_token(acc_hash)
-                if not token:
-                    logger.warning("[DISPATCH] No token for account %s, skipping ref upload", acc_hash[:12])
-                    continue
-                for b64_img in reference_image_bytes:
-                    media_id = await self._upload_reference_direct(b64_img, token)
-                    if media_id:
-                        all_ref_ids.append(media_id)
-                        logger.info("[DISPATCH] Reference uploaded: %s (via %s)", media_id[:12], acc_hash[:12])
-            if all_ref_ids:
-                self._reference_media_ids[project_id] = all_ref_ids
-                logger.info("[DISPATCH] All references ready: %s", all_ref_ids)
-
-        flow_project_id = uuid.uuid4().hex
-        base_url = f"https://aisandbox-pa.googleapis.com/v1/projects/{flow_project_id}/flowMedia:batchGenerateImages"
-        session_id = f";{int(time.time() * 1000)}"
-
-        # Build imageInputs if reference images are available
-        image_inputs = None
-        if all_ref_ids:
-            image_inputs = [
-                {"imageInputType": "IMAGE_INPUT_TYPE_REFERENCE", "name": ref_id}
-                for ref_id in all_ref_ids
-            ]
-
-        requests = []
-        for f in fragments:
-            if not f.image_prompt.strip():
-                continue
-            req = {
-                "clientContext": {
-                    "projectId": flow_project_id,
-                    "tool": "PINHOLE",
-                    "sessionId": session_id,
-                },
-                "imageModelName": model,
-                "imageAspectRatio": "IMAGE_ASPECT_RATIO_LANDSCAPE",
-                "structuredPrompt": {
-                    "parts": [{"text": f.image_prompt}],
-                },
-                "seed": random.randint(1, 999999),
-            }
-            req["imageInputs"] = image_inputs or []
-            body = {
-                "clientContext": {
-                    "projectId": flow_project_id,
-                    "tool": "PINHOLE",
-                    "sessionId": session_id,
-                },
-                "mediaGenerationContext": {
-                    "batchId": batch_id,
-                },
-                "useNewMedia": True,
-                "requests": [req],
-            }
-            requests.append({
-                "requestId": str(f.fragment_id),
-                "url": base_url,
-                "body": body,
-                "prompt": f.image_prompt,
-            })
-        if not requests:
+        fragments = [f for f in fragments if f.image_prompt.strip()]
+        if not fragments:
             return 0
-
-        logger.info(
-            "[BRIDGE] dispatch: batch=%s project=%s requests=%d url=%s first_prompt=%.60s",
-            batch_id, project_id, len(requests), base_url, requests[0].get("prompt", "")[:60],
-        )
 
         state = {
             "batch_id": batch_id,
             "project_id": project_id,
             "project_dir": project_dir,
-            "requests": requests,
-            "total": len(requests),
+            "fragments": fragments,
+            "total": len(fragments),
             "done": 0,
             "failed": 0,
             "model": model,
             "results": {},
             "accounts_used": [],
+            # Reference material for the batchexecute builds. Bytes are uploaded
+            # once per account (see _reference_ids_for) and cached here, so a
+            # later chunk never re-uploads the same image.
+            "reference_image_ids": list(reference_image_ids or []),
+            "reference_image_bytes": list(reference_image_bytes or []),
+            "ref_ids_by_account": {},
         }
         self._batch_results[batch_id] = state
 
+        logger.info(
+            "[BRIDGE] dispatch: batch=%s project=%s requests=%d model=%s",
+            batch_id, project_id, len(fragments), model,
+        )
         logger.info("[DISPATCH] accounts pool: %d | selected_accounts: %s",
                      len(self.accounts), selected_accounts)
         for h in self.accounts:
@@ -369,49 +283,162 @@ class ForgeBridge:
         if not self.accounts:
             self._pending.append(state)
             logger.info("[DISPATCH] No accounts connected, batch %s queued", batch_id)
-            return len(requests)
+            return len(fragments)
 
-        available = list(self.accounts.items())
-        logger.info("[DISPATCH] available before filter: %d", len(available))
-        if selected_accounts:
-            available = [(h, ws) for h, ws in available if h in selected_accounts]
-            logger.info("[DISPATCH] after selected_accounts filter: %d (selected: %s)",
-                        len(available), selected_accounts)
-
+        available = self._available_accounts(selected_accounts)
         if not available:
             self._pending.append(state)
             logger.info("[DISPATCH] No selected accounts available, batch %s queued", batch_id)
-            return len(requests)
+            return len(fragments)
 
-        # Create concurrency-sized chunks (prompts per account per round)
-        chunks = [requests[i:i+concurrency] for i in range(0, len(requests), concurrency)]
+        # One queue of fragment chunks. Envelopes are built per account when a
+        # chunk is handed over, because freq embeds that account's project id.
+        pending = [fragments[i:i + concurrency] for i in range(0, len(fragments), concurrency)]
+        accounts_used: list[str] = []
 
-        # Send one chunk per account
-        accounts_used = []
-        for i, (acc_hash, ws) in enumerate(available):
-            if i >= len(chunks):
+        for acc_hash, ws in available:
+            if not pending:
                 break
-            chunk = chunks[i]
-            if not chunk:
+            chunk = pending[0]
+            try:
+                requests = await self._build_batch_requests(chunk, acc_hash, state)
+            except Exception as e:
+                logger.error(
+                    "[DISPATCH] Flow project/reference setup failed for account %s: %s",
+                    acc_hash[:12], e,
+                )
+                continue  # leave the chunk queued and try the next account
+            if not requests:
+                pending.pop(0)
                 continue
-            accounts_used.append(acc_hash)
             try:
                 await ws.send(json.dumps({
-                    "type": "generate", "batchId": batch_id, "requests": chunk,
+                    "type": "generate", "batchId": batch_id, "requests": requests,
                 }))
-                logger.info("Sent %d prompts to account %s (concurrency=%d)", len(chunk), acc_hash[:12], concurrency)
             except websockets.exceptions.ConnectionClosed:
                 self.accounts.pop(acc_hash, None)
+                logger.warning("[DISPATCH] Account %s closed during send, chunk requeued", acc_hash[:12])
+                continue  # leave the chunk queued
+            pending.pop(0)
+            accounts_used.append(acc_hash)
+            logger.info("Sent %d prompts to account %s (concurrency=%d)", len(chunk), acc_hash[:12], concurrency)
 
         state["accounts_used"] = accounts_used
 
-        # Queue remaining chunks for accounts that finish their batch
-        remaining = chunks[len(accounts_used):]
-        if remaining:
-            self._pending_chunks[batch_id] = remaining
-            logger.info("Queued %d remaining chunks for batch %s", len(remaining), batch_id)
+        if not accounts_used:
+            logger.error("[DISPATCH] Batch %s could not be dispatched to any account", batch_id)
+            self._batch_results.pop(batch_id, None)
+            self._pending_chunks.pop(batch_id, None)
+            return 0
 
-        return len(requests)
+        if pending:
+            self._pending_chunks[batch_id] = pending
+            logger.info("Queued %d remaining chunks for batch %s", len(pending), batch_id)
+
+        return len(fragments)
+
+    async def _build_batch_requests(self, fragments: list, account_hash: str, state: dict) -> list[dict]:
+        """Build batchexecute generate items for one account at send time."""
+        project_id = await self.project_id_for(account_hash)
+        refs = await self._reference_ids_for(state, account_hash, project_id)
+        model = fb.resolve_image_model(_model_for_api(state.get("model")))
+        requests_list = []
+        for f in fragments:
+            freq = fb.image_request(
+                prompt=f.image_prompt,
+                project_id=project_id,
+                aspect="IMAGE_ASPECT_RATIO_LANDSCAPE",
+                model=model,
+                ref_media_ids=refs,
+            )
+            requests_list.append({
+                "requestId": str(f.fragment_id),
+                "rpcid": fb.RPC_GEN_IMAGE,
+                "freq": freq,
+                "captchaAction": fb.CAPTCHA_IMAGE,
+            })
+        return requests_list
+
+    async def _reference_ids_for(self, state: dict, account_hash: str, project_id: str) -> list[str]:
+        """Reference media ids for one account, uploading bytes on first use.
+
+        Media ids are account-scoped on the new Flow, so the cache lives per
+        account inside this dispatch (state["ref_ids_by_account"]).
+        """
+        cache = state.setdefault("ref_ids_by_account", {})
+        if account_hash in cache:
+            return cache[account_hash]
+        refs = list(state.get("reference_image_ids") or [])
+        for b64_img in state.get("reference_image_bytes") or []:
+            try:
+                raw = await self._rpc_over_ws(
+                    account_hash,
+                    fb.RPC_UPLOAD_IMAGE,
+                    fb.upload_request(b64_img, project_id, mime_type="image/png", file_name="reference.png"),
+                    fb.CAPTCHA_IMAGE,
+                    60,
+                )
+                if not raw.get("success"):
+                    logger.warning("[REF] Upload failed on %s: %s",
+                                   account_hash[:12], raw.get("error") or raw.get("status"))
+                    continue
+                media_id = fb.read_uploaded_media_id(
+                    fb.first_payload(raw.get("data", ""), fb.RPC_UPLOAD_IMAGE)
+                )
+                refs.append(media_id)
+                logger.info("[REF] Uploaded reference %s via %s", media_id[:12], account_hash[:12])
+            except Exception as e:
+                logger.warning("[REF] Upload error on %s: %s", account_hash[:12], e)
+        refs = list(dict.fromkeys(refs))
+        cache[account_hash] = refs
+        return refs
+
+    async def dispatch_thumbnail(
+        self,
+        project_id: str,
+        thumbnail_prompt: str,
+        model: str = "GEM_PIX_2",
+    ) -> str | None:
+        """Dispatch a SINGLE Flow image request for thumbnail background generation.
+
+        Returns the flow-content.google image URL, or None on failure.
+        """
+        available = self._available_accounts(None)
+        if not available:
+            logger.warning("[THUMBNAIL] No accounts connected for dispatch")
+            return None
+
+        acc_hash, _ws = available[0]
+        logger.info("[THUMBNAIL] dispatch: project=%s prompt=%.60s", project_id, thumbnail_prompt[:60])
+        try:
+            flow_project_id = await self.project_id_for(acc_hash)
+            freq = fb.image_request(
+                prompt=thumbnail_prompt,
+                project_id=flow_project_id,
+                count=1,
+                aspect="IMAGE_ASPECT_RATIO_LANDSCAPE",
+                model=fb.resolve_image_model(_model_for_api(model)),
+            )
+            raw = await self._rpc_over_ws(acc_hash, fb.RPC_GEN_IMAGE, freq, fb.CAPTCHA_IMAGE, 120)
+        except Exception as e:
+            logger.warning("[THUMBNAIL] Flow request failed: %s", e)
+            return None
+
+        if not raw.get("success"):
+            err = _failure_text(raw.get("data", ""), str(raw.get("error") or ""))
+            if "PUBLIC_ERROR_UNUSUAL_ACTIVITY" in f"{raw.get('error') or ''} {raw.get('data') or ''}":
+                self._cool_down(acc_hash)
+            logger.warning("[THUMBNAIL] Flow request failed: %s", err)
+            return None
+
+        try:
+            img = _parse_generated_image(raw.get("data", ""))
+        except (fb.RpcError, fb.FlowBatchError, ValueError) as e:
+            logger.warning("[THUMBNAIL] Failed to parse Flow response: %s", e)
+            return None
+
+        logger.info("[THUMBNAIL] Got image url: %.100s", img.url)
+        return img.url
 
     async def wait_for_batch(self, batch_id: str, timeout: int = 600) -> dict:
         """Wait for a batch to complete and return results"""
@@ -470,6 +497,13 @@ class ForgeBridge:
                 elif t == "result":
                     logger.info("[BRIDGE] Result received: batch=%s results=%d from=%s", msg.get("batchId"), len(msg.get("results", [])), (account_hash or "?")[:12])
                     await self._handle_result(msg.get("batchId"), msg.get("results", []), account_hash)
+                elif t == "rpc_result":
+                    rpc_id = msg.get("id")
+                    fut = self._rpc_pending.get(rpc_id)
+                    if fut is None or fut.done():
+                        logger.info("[BRIDGE] rpc_result for unknown/completed id: %s", rpc_id)
+                    else:
+                        fut.set_result(msg)
                 else:
                     logger.info("[WS] Unknown message type: %s from %s", t, (account_hash or "?")[:12])
         except websockets.exceptions.ConnectionClosed:
@@ -481,17 +515,24 @@ class ForgeBridge:
                 del self.accounts[account_hash]
                 logger.info("[ACCOUNTS] Disconnected: %s | remaining: %d | hashes: %s",
                             account_hash[:12], len(self.accounts), list(self.accounts.keys()))
+            if account_hash:
+                self._fail_pending_rpcs(account_hash)
 
     async def _flush_pending(self, ws: ServerConnection, account_hash: str):
         if not self._pending:
             return
         state = self._pending.pop(0)
         try:
+            requests = await self._build_batch_requests(state["fragments"], account_hash, state)
             await ws.send(json.dumps({
-                "type": "generate", "batchId": state["batch_id"], "requests": state["requests"],
+                "type": "generate", "batchId": state["batch_id"], "requests": requests,
             }))
-        except Exception:
+        except Exception as e:
+            logger.error("[BRIDGE] Failed to flush queued batch %s to %s: %s",
+                         state["batch_id"], account_hash[:12], e)
             self._pending.insert(0, state)
+            return
+        state.setdefault("accounts_used", []).append(account_hash)
 
     async def _handle_result(self, batch_id: str, results: list[dict], account_hash: str | None = None):
         state = self._batch_results.get(batch_id)
@@ -500,27 +541,35 @@ class ForgeBridge:
             return
 
         for r in results:
-            rid = r.get("requestId", "")
-            ok = r.get("success", False)
-            status = r.get("status", 0)
-            raw_data = r.get("data", "")
-            # The response body is a JSON string — parse it
-            parsed = raw_data
-            if isinstance(raw_data, str):
+            rid = str(r.get("requestId", ""))
+            raw_data = r.get("data") or ""
+            if not isinstance(raw_data, str):
+                raw_data = json.dumps(raw_data)
+            ext_error = str(r.get("error") or "")
+            try:
+                fid = int(rid)
+            except (TypeError, ValueError):
+                logger.warning("[BRIDGE] Non-numeric requestId %r in batch %s — ignored", rid, batch_id)
+                continue
+
+            ok = bool(r.get("success", False))
+            parse_error = ""
+            img: fb.GeneratedImage | None = None
+            if ok:
                 try:
-                    parsed = json.loads(raw_data)
-                except (json.JSONDecodeError, TypeError):
-                    parsed = {"raw": raw_data}
-            elif not isinstance(raw_data, dict):
-                parsed = {"raw": str(raw_data)}
-            
-            data_preview = (raw_data or "")[:200]
-            logger.info("[BRIDGE] Result item: request=%s success=%s status=%s data_len=%d preview=%.120s", rid, ok, status, len(data_preview), data_preview)
+                    img = _parse_generated_image(raw_data)
+                except (fb.RpcError, fb.FlowBatchError, ValueError) as e:
+                    ok = False
+                    parse_error = str(e)
+                    logger.warning("[BRIDGE] Fragment %s: batchexecute parse failed: %s", rid, e)
+
+            status = r.get("status", 0)
+            logger.info("[BRIDGE] Result item: request=%s success=%s status=%s data_len=%d",
+                        rid, ok, status, len(raw_data))
             state["results"][rid] = r
-            fid = int(rid)
 
             if ok and self._save_image:
-                saved = await self._save_image(state["project_id"], fid, parsed)
+                saved = await self._save_image(state["project_id"], fid, _legacy_image_payload(img))
                 if saved:
                     state["done"] += 1
                     await sse_manager.emit_result(state["project_id"], batch_id, fid, "done")
@@ -528,36 +577,22 @@ class ForgeBridge:
                     state["failed"] += 1
                     await sse_manager.emit_result(state["project_id"], batch_id, fid, "failed",
                                                    error="Flow returned 200 but no image data")
-                    logger.warning("[BRIDGE] Fragment %s: HTTP 200 but save_image failed", rid)
+                    logger.warning("[BRIDGE] Fragment %s: envelope ok but save_image failed", rid)
             elif ok:
                 state["done"] += 1
                 await sse_manager.emit_result(state["project_id"], batch_id, fid, "done")
             else:
                 state["failed"] += 1
-                # Extract human-readable error from Flow response
-                err_msg = ""
-                try:
-                    if isinstance(parsed, dict):
-                        err = parsed.get("error", {})
-                        err_msg = err.get("message", "") or json.dumps(err)[:200]
-                except Exception:
-                    err_msg = str(raw_data)[:200]
+                err_msg = _failure_text(raw_data, ext_error or parse_error)
+                if "PUBLIC_ERROR_UNUSUAL_ACTIVITY" in f"{ext_error} {raw_data}":
+                    self._cool_down(account_hash)
                 await sse_manager.emit_result(state["project_id"], batch_id, fid, "failed", error=err_msg)
-                # Log full response for diagnosis
-                err_body = ""
-                try:
-                    if isinstance(raw_data, str) and len(raw_data) < 2000:
-                        err_body = raw_data
-                    elif isinstance(parsed, dict):
-                        err_body = json.dumps(parsed)[:2000]
-                except Exception:
-                    err_body = str(raw_data)[:500]
-                logger.error("[BRIDGE] Fragment %s FAILED: HTTP %s response=%.2000s", rid, status, err_body)
+                logger.error("[BRIDGE] Fragment %s FAILED: status=%s error=%.300s", rid, status, err_msg)
 
             progress = (state["done"] + state["failed"]) / state["total"] * 100
             await sse_manager.emit_progress(state["project_id"], batch_id, fid, progress)
 
-        # Flush next chunk to the reporting account
+        # Flush next chunk to the reporting account (or a replacement if it is cooling)
         if account_hash and account_hash in self.accounts:
             await self._flush_next_chunk(batch_id, account_hash, self.accounts[account_hash])
 
@@ -575,15 +610,42 @@ class ForgeBridge:
         chunks = self._pending_chunks.get(batch_id)
         if not chunks:
             return
-        chunk = chunks.pop(0)
+        state = self._batch_results.get(batch_id)
+        if not state:
+            self._pending_chunks.pop(batch_id, None)
+            return
+
+        target_hash, target_ws = account_hash, ws
+        if self._account_cooldown.get(account_hash, 0) > time.time():
+            alternatives = self._available_accounts(None)
+            if not alternatives:
+                logger.warning(
+                    "[BRIDGE] Account %s cooling and no replacement available — %d chunk(s) for batch %s stay queued",
+                    account_hash[:12], len(chunks), batch_id,
+                )
+                return
+            target_hash, target_ws = alternatives[0]
+            logger.info("[BRIDGE] Account %s cooling — handing next chunk to %s",
+                        account_hash[:12], target_hash[:12])
+
+        chunk = chunks[0]
         try:
-            await ws.send(json.dumps({
-                "type": "generate", "batchId": batch_id, "requests": chunk,
+            requests = await self._build_batch_requests(chunk, target_hash, state)
+        except Exception as e:
+            logger.error("[BRIDGE] Failed to build next chunk for batch %s on %s: %s",
+                         batch_id, target_hash[:12], e)
+            return  # keep the chunk queued
+        try:
+            await target_ws.send(json.dumps({
+                "type": "generate", "batchId": batch_id, "requests": requests,
             }))
-            logger.info("Flushed next chunk (%d prompts) to account %s", len(chunk), account_hash[:12])
         except websockets.exceptions.ConnectionClosed:
-            self.accounts.pop(account_hash, None)
-            chunks.insert(0, chunk)
+            self.accounts.pop(target_hash, None)
+            logger.warning("[BRIDGE] Account %s closed while flushing batch %s", target_hash[:12], batch_id)
+            return  # keep the chunk queued
+        chunks.pop(0)
+        state.setdefault("accounts_used", []).append(target_hash)
+        logger.info("Flushed next chunk (%d prompts) to account %s", len(chunk), target_hash[:12])
         if not chunks:
             self._pending_chunks.pop(batch_id, None)
 

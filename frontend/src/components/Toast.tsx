@@ -24,9 +24,9 @@ const icons = {
 }
 
 const config = {
-  success: { border: "border-emerald-500/30", icon: "text-emerald-400", bar: "bg-emerald-500" },
-  error: { border: "border-red-500/30", icon: "text-red-400", bar: "bg-red-500" },
-  info: { border: "border-sky-500/30", icon: "text-sky-400", bar: "bg-sky-500" },
+  success: { border: "border-ok/30", icon: "text-ok", bar: "bg-ok" },
+  error: { border: "border-danger/30", icon: "text-danger", bar: "bg-danger" },
+  info: { border: "border-tag-blue/30", icon: "text-tag-blue", bar: "bg-tag-blue" },
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -51,12 +51,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           return (
             <div
               key={t.id}
-              className={`pointer-events-auto flex items-start gap-3 min-w-80 max-w-sm
-                bg-surface-elevated/95 backdrop-blur-sm border ${c.border} rounded-lg p-4
-                shadow-2xl animate-slide-up`}
+              className={`pointer-events-auto relative overflow-hidden flex items-start gap-3 min-w-80 max-w-sm
+                bg-surface-elevated/95 backdrop-blur-sm border ${c.border} rounded-[12px] p-4
+                shadow-[0_30px_60px_-30px_rgba(0,0,0,0.95)] animate-slide-up`}
             >
               <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${c.icon}`} />
-              <p className="text-sm text-gray-300 font-body">{t.message}</p>
+              <p className="text-sm text-ink-dim font-body">{t.message}</p>
               <div className={`absolute bottom-0 left-0 h-0.5 ${c.bar} rounded-full animate-[shrink_3.5s_linear]`}
                 style={{ width: "100%" }}
               />

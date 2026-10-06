@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useRef, useState } from "react"
-import { useParams } from "react-router-dom"
-import { Video, Save } from "lucide-react"
+import { useNavigate, useParams } from "react-router-dom"
+import { Video, Save, AlertTriangle } from "lucide-react"
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core"
 import { useTimelineStore } from "../stores/timelineStore"
@@ -13,6 +13,7 @@ import TimelineRuler from "../components/timeline/TimelineRuler"
 
 export default function TimelinePage() {
   const { projectId } = useParams<{ projectId: string }>()
+  const navigate = useNavigate()
 
   // ── Store selectors ───────────────────────────────────────────────
   const timeline = useTimelineStore((s) => s.timeline)
@@ -212,10 +213,10 @@ export default function TimelinePage() {
   // ── Loading state ─────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-950">
+      <div className="flex items-center justify-center h-screen bg-surface">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm text-slate-400 font-mono">Loading timeline...</span>
+          <div className="w-6 h-6 border-2 border-tag-blue border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm text-ink-dim font-mono">Loading timeline...</span>
         </div>
       </div>
     )
@@ -224,15 +225,30 @@ export default function TimelinePage() {
   // ── Fatal error state (no timeline at all) ─────────────────────────
   if (error && !timeline) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-950">
-        <div className="flex flex-col items-center gap-3">
-          <div className="text-red-400 text-sm font-mono">{error}</div>
-          <button
-            className="btn-secondary text-xs"
-            onClick={() => projectId && loadTimeline(projectId)}
-          >
-            Retry
-          </button>
+      <div className="bg-surface h-screen flex items-center justify-center">
+        <div className="max-w-md text-center">
+          <EmptyState
+            icon={<AlertTriangle />}
+            title="Sin datos de timeline"
+            description="Este proyecto todavía no tiene un timeline. Configura y genera el render primero; el timeline se crea a partir de esa configuración."
+            action={
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  className="btn-primary"
+                  onClick={() => projectId && loadTimeline(projectId)}
+                >
+                  Reintentar
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={() => projectId && navigate(`/render/${projectId}`)}
+                >
+                  Ir a Render
+                </button>
+              </div>
+            }
+          />
+          <p className="mt-2 text-[11px] font-mono text-ink-faint">{error}</p>
         </div>
       </div>
     )
@@ -241,7 +257,7 @@ export default function TimelinePage() {
   // ── Empty / no timeline state ─────────────────────────────────────
   if (!timeline) {
     return (
-      <div className="bg-slate-950 h-screen">
+      <div className="bg-surface h-screen">
         <EmptyState
           icon={<Video />}
           title="No timeline data"
@@ -253,15 +269,15 @@ export default function TimelinePage() {
 
   // ── Render ────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-screen bg-slate-950">
+    <div className="flex flex-col h-screen bg-surface">
       {/* ── Toast notification ─────────────────────────────────────── */}
       {toast && (
         <div
           className={`fixed top-4 right-4 z-50 px-4 py-2 rounded shadow-lg text-sm flex items-center gap-2
-            ${toast.type === "error" ? "bg-red-600 text-white" : "bg-emerald-600 text-white"}`}
+            ${toast.type === "error" ? "bg-danger text-ink" : "bg-ok text-ink"}`}
         >
           <span>{toast.message}</span>
-          <button className="text-white/70 hover:text-white" onClick={() => setToast(null)}>
+          <button className="text-ink/70 hover:text-ink" onClick={() => setToast(null)}>
             ×
           </button>
         </div>
@@ -269,31 +285,31 @@ export default function TimelinePage() {
 
       {/* ── Export progress indicator ──────────────────────────────── */}
       {exportMessage && (
-        <div className="fixed bottom-4 right-4 z-50 px-4 py-2 bg-slate-800 border border-slate-700 text-slate-200 rounded-lg shadow-lg text-xs font-mono flex items-center gap-2">
+        <div className="fixed bottom-4 right-4 z-50 px-4 py-2 bg-surface-elevated border border-border text-ink rounded-lg shadow-lg text-xs font-mono flex items-center gap-2">
           {isExporting && (
-            <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-3 h-3 border-2 border-tag-blue border-t-transparent rounded-full animate-spin" />
           )}
           <span>{exportMessage}</span>
         </div>
       )}
 
       {/* ── Header ────────────────────────────────────────────────── */}
-      <header className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 shrink-0">
+      <header className="flex items-center justify-between px-4 py-2 bg-surface-card border-b border-border shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <h1 className="text-sm font-semibold text-slate-200 font-sans whitespace-nowrap">
+          <h1 className="text-sm font-semibold text-ink font-sans whitespace-nowrap">
             Timeline Editor
           </h1>
-          <span className="text-xs text-slate-500 font-mono whitespace-nowrap">
+          <span className="text-xs text-ink-faint font-mono whitespace-nowrap">
             {timeline.canvas.width}&times;{timeline.canvas.height} @ {timeline.canvas.fps}fps
           </span>
-          <span className="text-xs text-slate-600 font-mono">
+          <span className="text-xs text-ink-faint font-mono">
             {(duration / 60).toFixed(1)}m
           </span>
         </div>
 
         <div className="flex items-center gap-2">
           {isSaving && (
-            <span className="flex items-center gap-1.5 text-xs text-slate-500 font-mono">
+            <span className="flex items-center gap-1.5 text-xs text-ink-faint font-mono">
               <Save className="w-3 h-3" />
               Saving...
             </span>
@@ -311,8 +327,8 @@ export default function TimelinePage() {
                 key={opt.value}
                 className={`px-2 py-0.5 text-[11px] rounded font-medium transition-colors
                   ${pixelsPerSecond === opt.value
-                    ? "bg-blue-500/20 text-blue-400"
-                    : "text-slate-500 hover:text-slate-300 hover:bg-slate-800"}`}
+                    ? "bg-tag-blue/20 text-tag-blue"
+                    : "text-ink-faint hover:text-ink-dim hover:bg-surface-elevated"}`}
                 onClick={() => setZoom(opt.value)}
               >
                 {opt.label}
@@ -326,7 +342,7 @@ export default function TimelinePage() {
           >
             {isExporting ? (
               <>
-                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div className="w-3.5 h-3.5 border-2 border-ink/30 border-t-transparent rounded-full animate-spin" />
                 Exporting...
               </>
             ) : (
@@ -389,14 +405,14 @@ export default function TimelinePage() {
 
               <DragOverlay>
                 {activeId ? (
-                  <div className="w-40 h-12 rounded bg-blue-500/30 border-2 border-blue-400" />
+                  <div className="w-40 h-12 rounded bg-tag-blue/30 border-2 border-tag-blue" />
                 ) : null}
               </DragOverlay>
             </DndContext>
 
             {/* Empty tracks notice */}
             {timeline.tracks.length === 0 && (
-              <div className="flex items-center justify-center h-32 text-slate-600 text-xs font-mono">
+              <div className="flex items-center justify-center h-32 text-ink-faint text-xs font-mono">
                 No tracks — add fragments to the project first
               </div>
             )}
