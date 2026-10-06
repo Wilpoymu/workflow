@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     bridge_host: str = "127.0.0.1"
     bridge_ws_port: int = 8766
 
+    # Optional override: force one Flow project id for every account.
+    # Empty means "resolve per account from flow_projects.json, create if missing".
+    flow_project_id: str = ""
+
     whisper_model_size: str = "small"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"

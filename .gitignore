@@ -11,6 +11,7 @@ backend/.coverage
 backend/htmlcov/
 backend/workflow.db
 backend/jobs.sqlite
+backend/flow_projects.json
 workflow.db
 
 # ── Node / Frontend ────────────────────────────────────
