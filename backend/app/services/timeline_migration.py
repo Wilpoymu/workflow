@@ -12,6 +12,8 @@ import logging
 import math
 from pathlib import Path
 
+from app.services.project_service import get_reference_text_path
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["auto_migrate"]
@@ -139,23 +141,9 @@ def auto_migrate(project_dir: str) -> dict | None:
             transcript_path = str(audio_json)
 
     script_path = None
-    script_txt = project_path / "audio" / "reference.txt"
-    if script_txt.exists():
-        script_path = str(script_txt)
-    if not script_path:
-        audio_txt = project_path / "audio" / "text.txt"
-        if audio_txt.exists():
-            script_path = str(audio_txt)
-    if not script_path:
-        # Fallback: any .txt file in audio/ that isn't script.srt
-        for txt_file in sorted((project_path / "audio").glob("*.txt")):
-            if txt_file.name != "script.srt":
-                script_path = str(txt_file)
-                break
-    if not script_path:
-        root_txt = project_path / "text.txt"
-        if root_txt.exists():
-            script_path = str(root_txt)
+    ref_txt = get_reference_text_path(project_path)
+    if ref_txt:
+        script_path = str(ref_txt)
 
     if transcript_path:
         for pf in sorted(project_path.glob("prompts-*.json")):

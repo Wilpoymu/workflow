@@ -323,8 +323,8 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
             )
             
             # Guardar transcripción
-            text_path = project_path / "text.txt"
-            text_path_arg = str(text_path) if text_path.exists() else None
+            text_path = project_service.get_reference_text_path(project_path)
+            text_path_arg = str(text_path) if text_path else None
             save_transcription(str(project_path), segment, text_path_arg)
             
             workflow.stage_progress[PipelineStage.TRANSCRIBE] = 1.0
@@ -354,8 +354,8 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
         await sse_manager.emit_workflow_stage_start(project_id, PipelineStage.METADATA)
 
         try:
-            text_path = project_path / "text.txt"
-            has_text = text_path.exists() and text_path.read_text(encoding="utf-8").strip()
+            text_path = project_service.get_reference_text_path(project_path)
+            has_text = bool(text_path and text_path.read_text(encoding="utf-8").strip())
 
             if not has_text:
                 logger.warning("[WORKFLOW] No text.txt found, skipping metadata stage")
@@ -472,8 +472,8 @@ async def _run_pipeline(project_id: str, render_config: dict, concurrency: int =
             try:
                 # Read script from project directory
                 script = ""
-                text_path = project_path / "text.txt"
-                if text_path.exists():
+                text_path = project_service.get_reference_text_path(project_path)
+                if text_path:
                     script = text_path.read_text(encoding="utf-8")
 
                 if not script:

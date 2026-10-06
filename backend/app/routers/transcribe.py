@@ -210,8 +210,8 @@ async def run_transcription(job_id: str, project_id: str, audio_path: str, model
         if not project:
             raise RuntimeError("Project not found")
 
-        text_path = Path(project.base_dir) / "text.txt"
-        text_path_arg = str(text_path) if text_path.exists() else None
+        text_path = project_service.get_reference_text_path(project.base_dir)
+        text_path_arg = str(text_path) if text_path else None
 
         result = save_transcription(project.base_dir, segment, text_path_arg)
 
