@@ -20,8 +20,6 @@ from app.routers.images import save_image
 from app.services import project_service
 from app.services.forge_bridge import bridge
 from app.services.gems_manager import init_gems
-from pydantic import BaseModel
-from app.services.forge_bridge import bridge
 
 
 @asynccontextmanager
@@ -76,23 +74,6 @@ async def setup_status():
 async def list_accounts():
     """List connected Forge accounts (global, not project-specific)"""
     return {"accounts": bridge.get_accounts()}
-
-
-class AuthAutoRequest(BaseModel):
-    account: str
-    token: str
-    email: str | None = None
-    name: str | None = None
-
-
-@app.post("/api/auth/auto")
-async def auth_auto(req: AuthAutoRequest):
-    """Register account from Chrome extension auto-auth (includes bearer token)"""
-    if req.email:
-        bridge.register_account_email(req.account, req.email)
-    if req.token:
-        bridge.register_account_token(req.account, req.token)
-    return {"status": "ok", "account": req.account}
 
 
 @app.get("/api/health")

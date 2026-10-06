@@ -11,6 +11,7 @@ backend/.coverage
 backend/htmlcov/
 backend/workflow.db
 backend/jobs.sqlite
+backend/flow_projects.json
 workflow.db
 
 # ── Node / Frontend ────────────────────────────────────
@@ -25,6 +26,9 @@ frontend/public/redesign-*.html
 extension/.output/
 extension/.wxt/
 extension/node_modules/
+
+# ── Tooling (local) ────────────────────────────────────
+.codegraph/
 
 # ── OS ─────────────────────────────────────────────────
 Thumbs.db

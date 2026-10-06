@@ -37,10 +37,10 @@ export default function Images() {
     return saved ? Number(saved) : 2
   })
   const [model, setModel] = useState<string>(() => {
-    if (!storageKey) return "NARWHAL"
-    return sessionStorage.getItem(`${storageKey}-model`) ?? "NARWHAL"
+    const savedModel = storageKey ? sessionStorage.getItem(`${storageKey}-model`) : null
+    return savedModel === "GEM_PIX_2" || savedModel === "HARBOR_SEAL" ? savedModel : "GEM_PIX_2"
   })
-  const MODELS = ["NARWHAL", "GEM_PIX_2", "PINHOLE"]
+  const MODELS = ["GEM_PIX_2", "HARBOR_SEAL"]
   const [loading, setLoading] = useState(true)
   const [projectTitle, setProjectTitle] = useState("")
   const [generating, setGenerating] = useState(false)
@@ -379,9 +379,9 @@ export default function Images() {
               </div>
             </div>
             <p className="text-xs text-ink-faint mt-2">
-              {model === "NARWHAL" ? "Default model — good quality, fast" :
-               model === "GEM_PIX_2" ? "Gemini Pixel 2 — higher quality, more detailed" :
-               "PINHOLE — alternative model"}
+              {model === "GEM_PIX_2" ? "Nano Banana Pro — higher quality, more detailed" :
+               model === "HARBOR_SEAL" ? "Nano Banana 2 Lite — faster, lighter" :
+               "Unknown model"}
             </p>
           </div>
         )}
