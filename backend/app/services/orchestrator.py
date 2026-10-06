@@ -72,7 +72,7 @@ async def start_workflow(
     render_config: Optional[dict] = None,
     concurrency: int = 2,
     accounts: list[str] | None = None,
-    model: str = "NARWHAL",
+    model: str = "GEM_PIX_2",
     generate_thumbnail: bool = False,
     thumbnail_mode: str = "single",
 ) -> str:
@@ -100,7 +100,7 @@ async def start_workflow(
     return project_id
 
 
-async def _run_pipeline(project_id: str, render_config: dict, concurrency: int = 2, accounts: list[str] | None = None, model: str = "NARWHAL", generate_thumbnail: bool = False, thumbnail_mode: str = "single"):
+async def _run_pipeline(project_id: str, render_config: dict, concurrency: int = 2, accounts: list[str] | None = None, model: str = "GEM_PIX_2", generate_thumbnail: bool = False, thumbnail_mode: str = "single"):
     """Ejecutar el pipeline completo"""
     workflow = _active_workflows.get(project_id)
     if not workflow:

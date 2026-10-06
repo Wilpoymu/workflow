@@ -320,6 +320,17 @@ export default defineBackground({
     // Also run immediately since service worker may start fresh
     scanTabs()
 
+    // ── Flow bridge profile meta ───────────────────────────
+    // bridge.content.ts registers with the local bridge using a stable profile
+    // identity; reuse the same persisted Gemini profile meta.
+    chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+      if (!msg || msg.type !== "WF_GET_PROFILE_META") return
+      ensureProfileMeta()
+        .then(({ profileId, profileLabel }) => sendResponse({ id: profileId, label: profileLabel }))
+        .catch(() => sendResponse({ id: "profile:unknown", label: "Unknown profile" }))
+      return true // keep the channel open for the async reply
+    })
+
     log("Service worker started")
   },
 })

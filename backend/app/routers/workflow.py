@@ -20,7 +20,7 @@ class WorkflowConfig(BaseModel):
     """Configuración opcional para el workflow"""
     concurrency: int = 2
     accounts: list[str] | None = None
-    model: str = "NARWHAL"
+    model: str = "GEM_PIX_2"
     render: Optional[dict] = None
     generate_thumbnail: bool = False
     thumbnail_mode: str = "single"
