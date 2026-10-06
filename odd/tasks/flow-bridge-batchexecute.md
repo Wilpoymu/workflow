@@ -1,6 +1,6 @@
 # Feature: Flow Bridge — batchexecute migration
 
-**Status**: in progress
+**Status**: in progress — T2 done; native review of T2 blocked by reviewer-model budget (decision pending)
 **Branch**: `feat/flow-bridge-batchexecute` (from `develop` @867ae4e)
 **Created**: 2026-10-06
 **Authorized by**: user ("Vamos con ello", 2026-10-06). Project provisioning refined to **auto-create per account** (user question, 2026-10-06).
@@ -53,23 +53,35 @@ The bridge is the core product value (use the user's own Flow accounts — no of
 ## Tasks (stable IDs)
 
 - [x] **T1. Recon** — integration spec extracted from flowkit clone (envelope, `ogiZ0b`/`maseQ` payload slots, captcha hijack + serialization, `jHPbke` project creation, response parsing, tests map). Reference clone pinned at commit `af5e0583eff5633f5775cafe2ab948e9edfa79d9`. *(delegated `explore`; 4+ reference files)*
-- [ ] **T2. Backend module** — vendor `flow_batch.py` (byte-identical) + MIT LICENSE/NOTICE + ported slot-grammar tests. *(delegated writer)*
+- [x] **T2. Backend module** — vendored `flow_batch.py` (byte-identical; git blob `0e148562b3ea179ec7107236aa2cb749546bd2b0` matches upstream) + MIT LICENSE/NOTICE + ported slot-grammar tests. Commit `20032b9`. Evidence: `python -m pytest tests/test_flow_batch.py tests/test_flow_batch_golden.py` → **75 passed**; regression baseline `test_thumbnail_pillow.py` + `test_thumbnail_gemini.py` → **43 passed**; parent spot-check re-ran the 75 (passed). *(delegated writer)*
+  - **Native review of T2**: started (lineage `review-bb36a75575e2f86e`, medium, 1 lens `review-reliability`); **blocked by reviewer-model reasoning-budget exhaustion** — see incident below.
 - [ ] **T3. Backend wiring** — rewire `forge_bridge.py` dispatch/result + reference upload via page + project provisioning (`jHPbke` + `flow_projects.json` + override); clean up `main.py` auth path. *(delegated writer, same thread)*
 - [ ] **T4. Extension** — host permissions/matches; hijack-bypass (document_start, MAIN); executor rewrite (batchexecute + serialized captcha); WS protocol update; profile-based account identity; remove bearer code; rebuild unpacked + zip. *(delegated writer)*
 - [ ] **T5. Checks** — backend `pytest` (new + baseline); extension `wxt build`. *(inline bounded + fresh worker if heavy)*
 - [ ] **T6. Live E2E** — with user: open `flow.google.com` signed in, verify account registration + auto project creation, generate ≥1 scene image end-to-end; character-reference variant. *(user + orchestrator; evidence recorded)*
 - [ ] **T7. Close** — remove dead code, final cleanup commits, update doc + Engram mirror, honest close report.
 
+## Incident: native review of T2 blocked (2026-10-06)
+
+RDD assessed T2 commit `20032b9` as medium / `review_due: true` (`slice_budget_reached`). Review START approved by user; transaction frozen (`review-bb36a75575e2f86e`, state `reviewing`, lens `review-reliability`, correction budget 200). The single reviewer slot could not be filled:
+
+- **5 bounded launch attempts**, all returned typed `opencode_task_output_empty` ("the reviewer Task completed without producing a result").
+- **Root cause (verified from OpenCode's own SQLite records):** the reviewer child model `deepseek-v4.1-flash` (`variant: max`) **exhausts its 32 000-token reasoning budget** on the ~70 KB review materialization and finishes with `finish: length`, `output: 0`, no text parts; the OpenCode host renders that as an empty `<task_result>`, and the relay correctly refuses it (`opencode_task_output_empty`). Reasoning parts were ~108–111 K chars per attempt with zero output tokens.
+- **Historical context:** same failure class exists across earlier reviewer sessions on this model (flaky; some sessions succeed after 1–2 retries with `finish: stop`). Five consecutive failures exceed the useful autonomous retry budget; the empty-result host behavior is a known upstream OpenCode class (fix in `anomalyco/opencode#39473`; tracked in gentle-ai `#2609`). Not a defect in the T2 code, and **not a Gentle AI provider defect** (model/provider-side behavior; gentle-ai typed it correctly).
+- **State preserved:** the slot is NOT consumed (failed captures never consume the lens slot); lineage remains `reviewing`; candidate tree untouched. Recovery = relaunch the slot once the reviewer environment can produce output.
+- **Decision pending (user):** (a) retry more launches now; (b) change the reviewer model/variant for `review-*` agents (config + OpenCode reload) then relaunch; (c) continue without the T2 native review under ordinary policy.
+
 ## Acceptance criteria
 - `/api/accounts` lists account(s) while a signed-in `flow.google.com` tab is open with the extension loaded.
 - One fragment generation from Workflow completes: image file saved; no bearer path used.
 - Project auto-provisioned per account (created once, persisted, reused); manual override respected.
 - Character-reference generation works via page-side upload, OR explicitly documented as deferred.
-- Envelope tests prove positional slots (aspect-ratio slot, reference slot) — the traps.
+- Envelope tests prove positional slots (aspect-ratio slot, reference slot) — the traps. ✅ (75 tests green)
 - No code path calls `/fx/api/auth/session` or `aisandbox-pa...` with a bearer.
+- T2's native review reaches a terminal outcome (approved or explicitly declined/abandoned with recorded decision).
 
 ## Checks
-- Backend: `python -m pytest tests/` in `backend/` — baseline: `test_thumbnail_pillow.py` 22 passed, `test_thumbnail_gemini.py` 21 passed; `test_thumbnail_api.py` hangs pre-existing on this machine (>150s, characterized 2026-10-06) — excluded from gating until fixed separately.
+- Backend: `python -m pytest tests/` in `backend/` — baseline: `test_thumbnail_pillow.py` 22 passed, `test_thumbnail_gemini.py` 21 passed; `test_thumbnail_api.py` hangs pre-existing at `TestEventsEndpoint::test_sse_stream_starts` (SSE stream never ends) — excluded from gating until fixed separately.
 - Extension: `bunx wxt build` in `extension/` (+ unpacked output refreshed for load-unpacked).
 - Manual E2E steps recorded under T6 evidence.
 
@@ -77,9 +89,11 @@ The bridge is the core product value (use the user's own Flow accounts — no of
 Off (project precedent — Standard mode; no user TDD setting). Ordinary functional checks + new unit tests for the envelope builder.
 
 ## Progress / evidence
-- 2026-10-06: diagnosis complete (Flow host move + transport change). flowkit cloned to `C:\Users\T-Gency\AppData\Local\Temp\opencode\flowkit-ref` @ `af5e058`. Task doc created; branch `feat/flow-bridge-batchexecute` from `develop` @867ae4e; doc committed (`05985e9`, RDD assess: passive).
-- 2026-10-06: T1 recon complete — integration spec extracted (see Engram discovery memory for transport details): page fetch (form-urlencoded `f.req` + `at`), `at`/`f.sid`/`bl` from `WIZ_global_data`, pristine-captcha hijack at document_start + serialized single-use mints, `ogiZ0b` slot layout, `maseQ` upload, `flow-content.google/image/` URL parsing, `jHPbke` project creation, flowkit test map. Baselines: pillow/gemini tests pass; api test hang (pre-existing).
+- 2026-10-06: diagnosis complete (Flow host move + transport change). flowkit cloned to `C:\Users\T-Gency\AppData\Local\Temp\opencode\flowkit-ref` @ `af5e058`. Task doc created; branch `feat/flow-bridge-batchexecute` from `develop` @867ae4e; doc committed (`05985e9`, RDD passive).
+- 2026-10-06: T1 recon complete — integration spec extracted.
 - 2026-10-06: project provisioning design updated to auto-create (user question).
+- 2026-10-06: T2 complete — commit `20032b9` (vendored module byte-identical + tests). RDD assess: medium, `review_due: true` → native review started; reviewer slot blocked by model reasoning-budget exhaustion after 5 attempts (see incident).
+- 2026-10-06: doc updated with incident record; decision pending on how to proceed with T2's native review.
 
 ## Next step
-T2 delegation (vendor module + tests).
+User decision on the T2 native review incident (retry / reviewer model / skip), then T3.
