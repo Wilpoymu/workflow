@@ -27,6 +27,9 @@ extension/.output/
 extension/.wxt/
 extension/node_modules/
 
+# ── Tooling (local) ────────────────────────────────────
+.codegraph/
+
 # ── OS ─────────────────────────────────────────────────
 Thumbs.db
 .DS_Store
