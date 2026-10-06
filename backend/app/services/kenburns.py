@@ -35,6 +35,7 @@ except ImportError:
     HAS_GPU = False
 
 from app.config import settings
+from app.services.project_service import get_reference_text_path
 
 logger = logging.getLogger(__name__)
 
@@ -574,23 +575,9 @@ async def render_kenburns_video(
         if audio_json.exists():
             transcript_path = str(audio_json)
 
-    script_txt = audio_dir / "reference.txt"
-    if script_txt.exists():
-        script_path = str(script_txt)
-    if not script_path:
-        audio_txt = audio_dir / "text.txt"
-        if audio_txt.exists():
-            script_path = str(audio_txt)
-    if not script_path:
-        # Fallback: any .txt file in audio/ that isn't script.srt
-        for txt_file in sorted(audio_dir.glob("*.txt")):
-            if txt_file.name != "script.srt":
-                script_path = str(txt_file)
-                break
-    if not script_path:
-        root_txt = project_path / "text.txt"
-        if root_txt.exists():
-            script_path = str(root_txt)
+    ref_txt = get_reference_text_path(project_path)
+    if ref_txt:
+        script_path = str(ref_txt)
 
     if fragments_path and transcript_path:
         if progress_callback:

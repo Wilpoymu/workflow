@@ -512,8 +512,29 @@ def list_fragments_sync(project_path: Path) -> list[Fragment]:
     return [Fragment(**f) for f in data]
 
 
+def get_reference_text_path(project_dir: str | Path) -> Path | None:
+    """Return the first existing reference script text for a project.
+
+    Search order:
+      1) <project>/audio/text.txt
+      2) <project>/text.txt
+      3) <project>/audio/reference.txt
+      4) <project>/reference.txt
+    """
+    base = Path(project_dir)
+    for candidate in (
+        base / "audio" / "text.txt",
+        base / "text.txt",
+        base / "audio" / "reference.txt",
+        base / "reference.txt",
+    ):
+        if candidate.exists():
+            return candidate
+    return None
+
+
 async def get_script(project_id: str) -> str | None:
-    """Read the full script text from audio/text.txt."""
+    """Read the full script text from the reference text path."""
     db = await get_db()
     try:
         cursor = await db.execute("SELECT path FROM projects WHERE id = ?", (project_id,))
@@ -524,13 +545,9 @@ async def get_script(project_id: str) -> str | None:
     finally:
         await db.close()
 
-    # Try audio/text.txt first, then root text.txt as fallback
-    for candidate in (
-        Path(project_dir) / "audio" / "text.txt",
-        Path(project_dir) / "text.txt",
-    ):
-        if candidate.exists():
-            return candidate.read_text(encoding="utf-8")
+    text_path = get_reference_text_path(project_dir)
+    if text_path is not None:
+        return text_path.read_text(encoding="utf-8")
     return None
 
 
