@@ -22,11 +22,11 @@ export default function SRTPreview({ blocks }: SRTPreviewProps) {
             <span className="text-xs font-mono text-accent font-medium">
               {block.index}
             </span>
-            <span className="text-[10px] font-mono text-gray-700 leading-tight text-center">
+            <span className="text-[10px] font-mono text-ink-faint leading-tight text-center">
               {block.start}<br />{block.end}
             </span>
           </div>
-          <p className="text-sm text-gray-300 font-body leading-relaxed flex-1">
+          <p className="text-sm text-ink-dim font-body leading-relaxed flex-1">
             {block.text}
           </p>
         </Card>

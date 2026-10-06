@@ -156,13 +156,13 @@ export default function Transcribe() {
           else merged.push(entry)
         }
 
-        if (d.model) upsert("model", d.model, "text-teal-400")
-        if (d.device) upsert("device", d.device, d.device === "cuda" ? "text-green-400" : "text-yellow-400")
+        if (d.model) upsert("model", d.model, "text-teal")
+        if (d.device) upsert("device", d.device, d.device === "cuda" ? "text-ok" : "text-warn")
         if (d.compute_type) upsert("compute", d.compute_type)
         if (d.chunks_total && d.chunks_total > 1) {
-          upsert("chunks", `${d.chunk_current ?? "?"}/${d.chunks_total}`, "text-blue-400")
+          upsert("chunks", `${d.chunk_current ?? "?"}/${d.chunks_total}`, "text-tag-blue")
         }
-        if (d.language) upsert("lang", d.language, "text-purple-400")
+        if (d.language) upsert("lang", d.language, "text-tag-purple")
 
         chipRef.current = merged
         setDetailChips(merged)
@@ -276,32 +276,32 @@ export default function Transcribe() {
             <Card>
               <div className="flex items-center gap-2 mb-3">
                 <FolderOpen className="w-4 h-4 text-accent" />
-                <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">Detected Files</h3>
+                <h3 className="text-sm font-semibold text-ink font-sans">Detected Files</h3>
               </div>
               
               {detectedAudio && (
                 <div className="flex items-center gap-3 p-3 bg-surface-hover rounded-lg mb-2">
-                  <FileAudio className="w-5 h-5 text-blue-400 shrink-0" />
+                  <FileAudio className="w-5 h-5 text-tag-blue shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground dark:text-white truncate">{detectedAudio.filename}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-sm font-medium text-ink truncate">{detectedAudio.filename}</p>
+                    <p className="text-xs text-ink-dim">
                       {detectedAudio.size_mb?.toFixed(2)} MB • {detectedAudio.location}
                     </p>
                   </div>
-                  <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
+                  <CheckCircle className="w-4 h-4 text-ok shrink-0" />
                 </div>
               )}
 
               {detectedText && (
                 <div className="flex items-center gap-3 p-3 bg-surface-hover rounded-lg">
-                  <FileText className="w-5 h-5 text-yellow-400 shrink-0" />
+                  <FileText className="w-5 h-5 text-warn shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground dark:text-white truncate">{detectedText.filename}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-sm font-medium text-ink truncate">{detectedText.filename}</p>
+                    <p className="text-xs text-ink-dim">
                       {detectedText.size_kb?.toFixed(2)} KB • {detectedText.location}
                     </p>
                   </div>
-                  <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
+                  <CheckCircle className="w-4 h-4 text-ok shrink-0" />
                 </div>
               )}
             </Card>
@@ -331,8 +331,8 @@ export default function Transcribe() {
             <Card className="mt-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-foreground dark:text-white">{audioFile.name}</p>
-                  <p className="text-xs text-gray-500">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                  <p className="text-sm font-medium text-ink text-ink">{audioFile.name}</p>
+                  <p className="text-xs text-ink-dim">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</p>
                 </div>
               </div>
             </Card>
@@ -342,9 +342,9 @@ export default function Transcribe() {
           {hasFilesReady && jobStatus !== "running" && jobStatus !== "done" && (
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <label className="text-xs text-gray-500 font-body shrink-0">Model</label>
+                <label className="text-xs text-ink-dim font-body shrink-0">Model</label>
                 <select
-                  className="flex-1 px-3 py-1.5 text-xs font-mono bg-surface-hover border border-white/5 rounded-lg text-gray-300 focus:outline-none focus:border-accent/50"
+                  className="flex-1 px-3 py-1.5 text-xs font-mono bg-surface-hover border border-ink/10 rounded-lg text-ink-dim focus:outline-none focus:border-accent/50"
                   value={modelSize}
                   onChange={(e) => {
                     const val = e.target.value
@@ -370,15 +370,15 @@ export default function Transcribe() {
           )}
 
           <Card>
-            <h3 className="text-sm font-semibold text-foreground dark:text-white mb-3 font-sans">Job Status</h3>
+            <h3 className="text-sm font-semibold text-ink mb-3 font-sans">Job Status</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500 font-body">Status</span>
+                <span className="text-ink-dim font-body">Status</span>
                 <span className={`text-xs font-mono ${
-                  jobStatus === "done" ? "text-green-400" :
-                  jobStatus === "failed" ? "text-red-400" :
+                  jobStatus === "done" ? "text-ok" :
+                  jobStatus === "failed" ? "text-danger" :
                   jobStatus === "running" ? "text-accent" :
-                  jobStatus === "uploaded" ? "text-yellow-400" : "text-gray-400"
+                  jobStatus === "uploaded" ? "text-warn" : "text-ink-dim"
                 }`}>
                   {jobStatus === "idle" && "Idle"}
                   {jobStatus === "uploaded" && "Ready"}
@@ -390,7 +390,7 @@ export default function Transcribe() {
 
               {jobStatus === "running" && (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-xs text-gray-500 font-mono">
+                  <div className="flex items-center gap-2 text-xs text-ink-dim font-mono">
                     <Clock className="w-3.5 h-3.5" />
                     <span>
                       {String(Math.floor(elapsed / 60)).padStart(2, "0")}:
@@ -408,20 +408,20 @@ export default function Transcribe() {
               {jobStatus === "done" && (
                 <>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500 font-body">Language</span>
-                    <span className="text-gray-300 font-mono text-xs">{language || "—"}</span>
+                    <span className="text-ink-dim font-body">Language</span>
+                    <span className="text-ink-dim font-mono text-xs">{language || "—"}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500 font-body">Words</span>
-                    <span className="text-gray-300 font-mono text-xs">{wordCount}</span>
+                    <span className="text-ink-dim font-body">Words</span>
+                    <span className="text-ink-dim font-mono text-xs">{wordCount}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500 font-body">Segments</span>
-                    <span className="text-gray-300 font-mono text-xs">{srtBlocks.length}</span>
+                    <span className="text-ink-dim font-body">Segments</span>
+                    <span className="text-ink-dim font-mono text-xs">{srtBlocks.length}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500 font-body">Duration</span>
-                    <span className="text-gray-300 font-mono text-xs flex items-center gap-1">
+                    <span className="text-ink-dim font-body">Duration</span>
+                    <span className="text-ink-dim font-mono text-xs flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {String(Math.floor(elapsed / 60)).padStart(2, "0")}:
                       {String(elapsed % 60).padStart(2, "0")}
@@ -431,7 +431,7 @@ export default function Transcribe() {
               )}
 
               {jobStatus === "failed" && (
-                <div className="flex items-center gap-2 text-red-400 text-xs">
+                <div className="flex items-center gap-2 text-danger text-xs">
                   <AlertCircle className="w-4 h-4" />
                   <span>{message}</span>
                 </div>

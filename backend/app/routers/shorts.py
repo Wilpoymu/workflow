@@ -1,17 +1,25 @@
 import json
+import logging
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.services import project_service
 from app.services.shorts_maker.analyzer import analyze_folder, find_video_in_folder
+from app.services.shorts_maker.ai_analyzer import generate_ai_segments, analyze_segments_batch
 from app.services.shorts_maker.clipper import render_job
+from app.services.shorts_maker.srt_parser import entries_in_range, parse_srt
 from app.services.shorts_maker.types import ClipSuggestion, RenderJob
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/projects/{project_id}/shorts", tags=["shorts"])
+
+ANALYSIS_CACHE_FILE = "shorts/analysis.json"
 
 
 class ManualClip(BaseModel):
@@ -32,8 +40,30 @@ class RenderRequest(BaseModel):
     manual_clips: list[ManualClip] = []
 
 
+class SuggestionItem(BaseModel):
+    index: int
+    start_sec: float
+    end_sec: float
+    duration: float
+    score: float
+    reason: str
+    text_preview: str
+    ai_hook: str | None = None
+    ai_category: str | None = None
+    ai_viral_potential: str | None = None
+
+
 class AnalyzeResponse(BaseModel):
-    suggestions: list[dict]
+    suggestions: list[SuggestionItem]
+    cached: bool = False
+    generated_at: str | None = None
+    mode: str = "ai"
+
+
+class CachedAnalysis(BaseModel):
+    mode: str
+    generated_at: str
+    suggestions: list[SuggestionItem]
 
 
 class RenderResult(BaseModel):
@@ -57,15 +87,33 @@ class DownloadsResponse(BaseModel):
 
 
 async def _resolve_project_dir(project_id: str) -> Path:
-    """Resolve project directory from project_id."""
     project = await project_service.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return Path(project.base_dir)
 
 
+def _cache_path(project_dir: Path) -> Path:
+    return project_dir / ANALYSIS_CACHE_FILE
+
+
+def _load_cache(project_dir: Path) -> dict | None:
+    path = _cache_path(project_dir)
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return None
+    return None
+
+
+def _save_cache(project_dir: Path, data: dict) -> None:
+    path = _cache_path(project_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def _build_srt_from_words(project_dir: Path, start_idx: int, end_idx: int) -> Path | None:
-    """Build a temporary SRT file from word timestamps for precise subtitle tracking."""
     for candidate in (project_dir / "audio" / "script.json", project_dir / "script.json"):
         if candidate.exists():
             break
@@ -90,7 +138,6 @@ def _build_srt_from_words(project_dir: Path, start_idx: int, end_idx: int) -> Pa
         ms = int((sec - int(sec)) * 1000)
         return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
-    # Group into subtitle blocks of ~5 words each
     blocks: list[list[dict]] = []
     block_size = 5
     for i in range(0, len(selected), block_size):
@@ -117,39 +164,219 @@ def _build_srt_from_words(project_dir: Path, start_idx: int, end_idx: int) -> Pa
     return Path(temp.name)
 
 
+def _suggestions_to_dicts(suggestions: list[SuggestionItem]) -> list[dict]:
+    return [s.model_dump() for s in suggestions]
+
+
+def _dicts_to_suggestions(items: list[dict]) -> list[SuggestionItem]:
+    return [SuggestionItem(**item) for item in items]
+
+
+@router.get("/analysis")
+async def get_cached_analysis(project_id: str) -> AnalyzeResponse:
+    """Return cached analysis if available."""
+    project_dir = await _resolve_project_dir(project_id)
+    cached = _load_cache(project_dir)
+    if not cached:
+        return AnalyzeResponse(suggestions=[], cached=False, mode="ai")
+    return AnalyzeResponse(
+        suggestions=_dicts_to_suggestions(cached.get("suggestions", [])),
+        cached=True,
+        generated_at=cached.get("generated_at"),
+        mode=cached.get("mode", "ai"),
+    )
+
+
 @router.post("/analyze")
-async def analyze_project(project_id: str) -> AnalyzeResponse:
+async def analyze_project(
+    project_id: str,
+    mode: str = Query("ai", description="Analysis mode: 'ai' (AI generates segments), 'rules' (rule-based), 'combined' (both)"),
+    refresh: bool = Query(False, description="Force re-analysis, ignoring cache"),
+) -> AnalyzeResponse:
     """Analyze project folder and suggest best moments for shorts."""
     project_dir = await _resolve_project_dir(project_id)
 
     if not project_dir.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Project directory not found: {project_dir}",
-        )
+        raise HTTPException(status_code=404, detail=f"Project directory not found: {project_dir}")
 
+    if mode not in ("ai", "rules", "combined"):
+        mode = "ai"
+
+    # Check cache first (unless refresh)
+    if not refresh:
+        cached = _load_cache(project_dir)
+        if cached and cached.get("mode") == mode:
+            logger.info("Using cached analysis for project %s (mode=%s)", project_id, mode)
+            return AnalyzeResponse(
+                suggestions=_dicts_to_suggestions(cached.get("suggestions", [])),
+                cached=True,
+                generated_at=cached.get("generated_at"),
+                mode=mode,
+            )
+
+    logger.info("Running fresh analysis for project %s (mode=%s)", project_id, mode)
+
+    # Find SRT file
+    srt_files = list(project_dir.glob("*.srt"))
+    if not srt_files:
+        audio_dir = project_dir / "audio"
+        if audio_dir.is_dir():
+            srt_files = list(audio_dir.glob("*.srt"))
+    script_srt = [f for f in srt_files if f.name.lower() == "script.srt"]
+    srt_path = script_srt[0] if script_srt else (srt_files[0] if srt_files else None)
+
+    if not srt_path:
+        raise HTTPException(status_code=400, detail="No SRT file found in project")
+
+    entries = parse_srt(srt_path)
+    if not entries:
+        raise HTTPException(status_code=400, detail="Could not parse SRT file")
+
+    # --- AI mode: generate segments from full transcript ---
+    if mode == "ai":
+        try:
+            ai_segments = await generate_ai_segments(entries, top_n=15)
+        except Exception as e:
+            logger.error("AI segment generation failed: %s", e)
+            raise HTTPException(
+                status_code=500,
+                detail=f"AI analysis failed: {e}. Make sure Gemini Web cookies are configured.",
+            )
+
+        if not ai_segments:
+            return AnalyzeResponse(suggestions=[], mode=mode)
+
+        results = []
+        for i, seg in enumerate(ai_segments):
+            reason = f"ai:{seg.get('ai_category', 'General')}"
+            ai_reason = seg.get("ai_reason", "")
+            if ai_reason:
+                reason += f"|{ai_reason}"
+
+            results.append(
+                SuggestionItem(
+                    index=i,
+                    start_sec=seg["start_sec"],
+                    end_sec=seg["end_sec"],
+                    duration=seg["end_sec"] - seg["start_sec"],
+                    score=round(seg.get("ai_score", 5.0), 2),
+                    reason=reason,
+                    text_preview=seg.get("text", ""),
+                    ai_hook=seg.get("ai_hook", "medio"),
+                    ai_category=seg.get("ai_category", "General"),
+                    ai_viral_potential=seg.get("ai_viral_potential", "medio"),
+                )
+            )
+
+        results.sort(key=lambda x: x.score, reverse=True)
+        for i, r in enumerate(results):
+            r.index = i
+
+        # Persist to cache
+        now = datetime.now(timezone.utc).isoformat()
+        _save_cache(project_dir, {
+            "mode": mode,
+            "generated_at": now,
+            "suggestions": _suggestions_to_dicts(results),
+        })
+
+        return AnalyzeResponse(suggestions=results, mode=mode, generated_at=now)
+
+    # --- Rules and Combined modes: rule-based segmentation first ---
     try:
         suggestions = analyze_folder(project_dir)
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to analyze project: {e}",
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to analyze project: {e}")
 
-    return AnalyzeResponse(
-        suggestions=[
-            {
-                "index": i,
-                "start_sec": s.start_sec,
-                "end_sec": s.end_sec,
-                "duration": s.duration,
-                "score": s.score,
-                "reason": s.reason,
-                "text_preview": s.text_preview,
-            }
+    if not suggestions:
+        return AnalyzeResponse(suggestions=[], mode=mode)
+
+    if mode == "rules":
+        results = [
+            SuggestionItem(
+                index=i,
+                start_sec=s.start_sec,
+                end_sec=s.end_sec,
+                duration=s.duration,
+                score=s.score,
+                reason=s.reason,
+                text_preview=s.text_preview,
+            )
             for i, s in enumerate(suggestions)
         ]
-    )
+        now = datetime.now(timezone.utc).isoformat()
+        _save_cache(project_dir, {
+            "mode": mode,
+            "generated_at": now,
+            "suggestions": _suggestions_to_dicts(results),
+        })
+        return AnalyzeResponse(suggestions=results, mode=mode, generated_at=now)
+
+    # Combined mode: score rule-based segments with AI
+    try:
+        segments_for_ai = [
+            {"start_sec": s.start_sec, "end_sec": s.end_sec, "text": s.text_preview}
+            for s in suggestions
+        ]
+        ai_results = await analyze_segments_batch(segments_for_ai)
+    except Exception as e:
+        logger.warning("AI analysis failed for combined mode, falling back to rules: %s", e)
+        results = [
+            SuggestionItem(
+                index=i,
+                start_sec=s.start_sec,
+                end_sec=s.end_sec,
+                duration=s.duration,
+                score=s.score,
+                reason=s.reason,
+                text_preview=s.text_preview,
+            )
+            for i, s in enumerate(suggestions)
+        ]
+        now = datetime.now(timezone.utc).isoformat()
+        _save_cache(project_dir, {
+            "mode": mode,
+            "generated_at": now,
+            "suggestions": _suggestions_to_dicts(results),
+        })
+        return AnalyzeResponse(suggestions=results, mode=mode, generated_at=now)
+
+    results = []
+    for i, (orig, ai) in enumerate(zip(suggestions, ai_results)):
+        final_score = (orig.score + ai["ai_score"]) / 2
+        ai_cat = ai.get("ai_category", "General")
+        ai_reason = ai.get("ai_reason", "")
+        reason = f"ai:{ai_cat}"
+        if ai_reason:
+            reason += f"|{ai_reason}"
+
+        results.append(
+            SuggestionItem(
+                index=i,
+                start_sec=orig.start_sec,
+                end_sec=orig.end_sec,
+                duration=orig.duration,
+                score=round(final_score, 2),
+                reason=reason,
+                text_preview=orig.text_preview,
+                ai_hook=ai.get("ai_hook", "medio"),
+                ai_category=ai_cat,
+                ai_viral_potential=ai.get("ai_viral_potential", "medio"),
+            )
+        )
+
+    results.sort(key=lambda x: x.score, reverse=True)
+    for i, r in enumerate(results):
+        r.index = i
+
+    now = datetime.now(timezone.utc).isoformat()
+    _save_cache(project_dir, {
+        "mode": mode,
+        "generated_at": now,
+        "suggestions": _suggestions_to_dicts(results),
+    })
+
+    return AnalyzeResponse(suggestions=results, mode=mode, generated_at=now)
 
 
 @router.post("/render")
@@ -158,17 +385,11 @@ async def render_shorts(project_id: str, body: RenderRequest) -> RenderResponse:
     project_dir = await _resolve_project_dir(project_id)
 
     if not project_dir.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Project directory not found: {project_dir}",
-        )
+        raise HTTPException(status_code=404, detail=f"Project directory not found: {project_dir}")
 
     video_path = find_video_in_folder(project_dir)
     if not video_path:
-        raise HTTPException(
-            status_code=400,
-            detail="No video found in project directory",
-        )
+        raise HTTPException(status_code=400, detail="No video found in project directory")
 
     srt_files = list(project_dir.glob("*.srt"))
     if not srt_files:
@@ -178,30 +399,24 @@ async def render_shorts(project_id: str, body: RenderRequest) -> RenderResponse:
     srt_path = srt_files[0] if srt_files else None
 
     if not body.selections:
-        raise HTTPException(
-            status_code=400,
-            detail="No selections provided",
-        )
+        raise HTTPException(status_code=400, detail="No selections provided")
 
-    try:
-        suggestions = analyze_folder(project_dir)
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to analyze project: {e}",
-        )
+    # Try cached analysis first, then fall back to fresh analysis
+    cached = _load_cache(project_dir)
+    if cached:
+        suggestions = _dicts_to_suggestions(cached.get("suggestions", []))
+    else:
+        try:
+            suggestions = analyze_folder(project_dir)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to analyze project: {e}")
 
     if not suggestions and not body.manual_clips:
-        raise HTTPException(
-            status_code=400,
-            detail="No suggestions available for rendering",
-        )
+        raise HTTPException(status_code=400, detail="No suggestions available for rendering")
 
     shorts_dir = project_dir / "shorts"
     shorts_dir.mkdir(parents=True, exist_ok=True)
 
-    # Clean up leftover temp files from previous renders (.srt, .ass)
-    # Keep .mp4 files intact
     for f in shorts_dir.iterdir():
         if f.suffix.lower() in (".srt", ".ass") and f.is_file():
             try:
@@ -213,11 +428,9 @@ async def render_shorts(project_id: str, body: RenderRequest) -> RenderResponse:
     custom_srt_files: list[Path] = []
     manual_by_idx = {c.index: c for c in body.manual_clips}
     for idx in body.selections:
-        # Check if it's a manual clip first
         if idx in manual_by_idx:
             mc = manual_by_idx[idx]
 
-            # Build custom SRT from word timestamps if word indices provided
             custom_srt = None
             if mc.start_word_idx is not None and mc.end_word_idx is not None:
                 custom_srt = _build_srt_from_words(project_dir, mc.start_word_idx, mc.end_word_idx)
@@ -231,24 +444,17 @@ async def render_shorts(project_id: str, body: RenderRequest) -> RenderResponse:
                 reason=mc.reason,
                 text_preview=mc.text_preview,
             )
-            # Override srt for this clip
             if custom_srt:
                 srt_path = custom_srt
         elif idx >= 0 and idx < len(suggestions):
             s = suggestions[idx]
         else:
             results.append(
-                RenderResult(
-                    index=idx,
-                    filename="",
-                    success=False,
-                    error=f"Invalid index {idx}, max is {len(suggestions) - 1}",
-                )
+                RenderResult(index=idx, filename="", success=False, error=f"Invalid index {idx}, max is {len(suggestions) - 1}")
             )
             continue
         out_name = f"{project_id}_short_{idx:02d}.mp4"
         out_path = shorts_dir / out_name
-        # Version if file already exists — keep previous renders
         if out_path.exists():
             ver = 2
             while True:
@@ -269,20 +475,10 @@ async def render_shorts(project_id: str, body: RenderRequest) -> RenderResponse:
 
         try:
             render_job(job)
-            results.append(
-                RenderResult(index=idx, filename=out_name, success=True)
-            )
+            results.append(RenderResult(index=idx, filename=out_name, success=True))
         except Exception as e:
-            results.append(
-                RenderResult(
-                    index=idx,
-                    filename="",
-                    success=False,
-                    error=str(e),
-                )
-            )
+            results.append(RenderResult(index=idx, filename="", success=False, error=str(e)))
 
-    # Clean up custom SRT files created for manual clips
     for f in custom_srt_files:
         try:
             f.unlink(missing_ok=True)
@@ -303,9 +499,7 @@ async def list_downloads(project_id: str) -> DownloadsResponse:
 
     files = []
     for f in sorted(shorts_dir.glob("*.mp4")):
-        files.append(
-            DownloadItem(filename=f.name, size_bytes=f.stat().st_size)
-        )
+        files.append(DownloadItem(filename=f.name, size_bytes=f.stat().st_size))
 
     return DownloadsResponse(files=files)
 
@@ -317,19 +511,9 @@ async def download_file(project_id: str, filename: str):
     file_path = project_dir / "shorts" / filename
 
     if not file_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"File not found: {filename}",
-        )
+        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
 
     if file_path.suffix.lower() not in (".mp4", ".mov", ".webm"):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid file type",
-        )
+        raise HTTPException(status_code=400, detail="Invalid file type")
 
-    return FileResponse(
-        path=str(file_path),
-        media_type="video/mp4",
-        filename=filename,
-    )
+    return FileResponse(path=str(file_path), media_type="video/mp4", filename=filename)

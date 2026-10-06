@@ -84,33 +84,33 @@ export default function VideoPlayer({ src, className = "" }: VideoPlayerProps) {
           max={duration || 0}
           value={currentTime}
           onChange={handleSeek}
-          className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-accent"
+          className="w-full h-1 bg-surface-hover rounded-lg appearance-none cursor-pointer accent-accent"
         />
         
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-center gap-3">
             <button
               onClick={togglePlay}
-              className="text-white hover:text-accent transition-colors"
+              className="text-ink hover:text-accent transition-colors"
             >
               {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
             </button>
             
             <button
               onClick={toggleMute}
-              className="text-white hover:text-accent transition-colors"
+              className="text-ink hover:text-accent transition-colors"
             >
               {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
             </button>
             
-            <span className="text-white text-sm font-mono">
+            <span className="text-ink text-sm font-mono">
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
           
           <button
             onClick={toggleFullscreen}
-            className="text-white hover:text-accent transition-colors"
+            className="text-ink hover:text-accent transition-colors"
           >
             <Maximize className="w-5 h-5" />
           </button>

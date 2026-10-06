@@ -1,5 +1,18 @@
 const BASE = ""
 
+interface ShortsSuggestion {
+  index: number
+  start_sec: number
+  end_sec: number
+  duration: number
+  score: number
+  reason: string
+  text_preview: string
+  ai_hook?: string
+  ai_category?: string
+  ai_viral_potential?: string
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -293,28 +306,26 @@ export const api = {
     `/api/projects/${projectId}/workflow/events`,
 
   // Shorts
-  analyzeShorts: (projectId: string) =>
+  getCachedShortsAnalysis: (projectId: string) =>
     request<{
-      suggestions: Array<{
-        index: number
-        start_sec: number
-        end_sec: number
-        duration: number
-        score: number
-        reason: string
-        text_preview: string
-      }>
-    }>(`/api/projects/${projectId}/shorts/analyze`, { method: "POST" }),
+      suggestions: Array<ShortsSuggestion>
+      cached: boolean
+      generated_at: string | null
+      mode: string
+    }>(`/api/projects/${projectId}/shorts/analysis`),
+
+  analyzeShorts: (projectId: string, mode: string = "ai", refresh: boolean = false) =>
+    request<{
+      suggestions: Array<ShortsSuggestion>
+      cached: boolean
+      generated_at: string | null
+      mode: string
+    }>(`/api/projects/${projectId}/shorts/analyze?mode=${encodeURIComponent(mode)}&refresh=${refresh}`, { method: "POST" }),
 
   renderShorts: (projectId: string, data: { selections: number[]; font_size?: number; with_subtitles?: boolean; manual_clips?: Array<{index: number; start_sec: number; end_sec: number; duration: number; reason: string; text_preview: string}> }) =>
-    request<{
-      results: Array<{
-        index: number
-        filename: string
-        success: boolean
-        error?: string | null
-      }>
-    }>(`/api/projects/${projectId}/shorts/render`, { method: "POST", body: JSON.stringify(data) }),
+    request<{ results: Array<{ index: number; filename: string; success: boolean; error?: string | null }> }>(
+      `/api/projects/${projectId}/shorts/render`, { method: "POST", body: JSON.stringify(data) }
+    ),
 
   listShorts: (projectId: string) =>
     request<{

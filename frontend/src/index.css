@@ -3,12 +3,72 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --c-bg: 11 12 14;
+    --c-panel: 19 22 26;
+    --c-panel-2: 23 27 32;
+    --c-hover: 31 36 42;
+    --c-line: 36 38 41;
+    --c-line-subtle: 27 30 33;
+    --c-ink: 233 228 218;
+    --c-ink-dim: 166 162 154;
+    --c-ink-faint: 109 106 101;
+    --c-amber: 255 180 84;
+    --c-amber-dim: 217 154 74;
+    --c-teal: 95 208 192;
+    --c-danger: 240 112 96;
+    --c-ok: 115 208 162;
+    --c-warn: 232 179 74;
+    --c-tag-pink: 224 143 176;
+    --c-tag-blue: 127 184 230;
+    --c-tag-purple: 169 155 224;
+  }
+
   html {
-    @apply bg-surface text-white;
+    @apply bg-surface text-ink;
   }
 
   body {
     @apply font-body antialiased;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      radial-gradient(900px 520px at 8% -12%, rgb(var(--c-amber) / 0.07), transparent 60%),
+      radial-gradient(760px 520px at 102% -4%, rgb(var(--c-teal) / 0.05), transparent 55%);
+  }
+
+  body::after {
+    content: "";
+    position: fixed;
+    inset: -50%;
+    pointer-events: none;
+    z-index: 60;
+    opacity: 0.045;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  }
+
+  #root {
+    position: relative;
+    z-index: 1;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="range"],
+  progress {
+    accent-color: rgb(var(--c-amber));
+  }
+
+  select option {
+    background-color: rgb(var(--c-panel));
+    color: rgb(var(--c-ink));
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -16,12 +76,13 @@
   }
 
   ::selection {
-    background-color: rgba(45, 212, 191, 0.25);
-    color: #ccfbf1;
+    background-color: rgb(var(--c-amber) / 0.25);
+    color: rgb(var(--c-ink));
   }
 
   ::-webkit-scrollbar {
-    width: 6px;
+    width: 8px;
+    height: 8px;
   }
 
   ::-webkit-scrollbar-track {
@@ -29,67 +90,102 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #1e1e35;
-    border-radius: 3px;
+    background: rgb(var(--c-line));
+    border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #2a2a45;
+    background: rgb(var(--c-ink-faint) / 0.6);
   }
 }
 
 @layer components {
+  .page-eyebrow {
+    @apply font-mono text-[10.5px] uppercase tracking-[0.24em] text-accent;
+  }
+
+  .page-title {
+    @apply font-serif font-normal text-ink tracking-[-0.01em] leading-[1.05];
+  }
+
+  .sec-label {
+    @apply font-mono text-[10px] uppercase tracking-[0.26em] text-ink-faint;
+  }
+
+  .nav-group-label {
+    @apply font-mono text-[9.5px] uppercase tracking-[0.26em] text-ink-faint;
+  }
+
   .nav-link {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-      text-gray-500 hover:text-gray-300 hover:bg-surface-hover
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium
+      text-ink-dim hover:text-ink hover:bg-surface-hover
+      border-l-2 border-l-transparent
       transition-all duration-200;
   }
 
   .nav-link-active {
-    @apply text-accent bg-accent/10 shadow-[inset_3px_0_0_#2dd4bf];
+    @apply text-accent border-l-accent bg-gradient-to-r from-accent/10 to-transparent;
   }
 
   .btn-primary {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg
-      bg-accent text-surface font-semibold text-sm
-      hover:bg-accent/90 active:bg-accent/80
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-[10px]
+      bg-gradient-to-b from-[#ffc470] to-accent text-[#191106] font-semibold text-[13px]
+      shadow-[0_10px_26px_-12px_rgba(255,180,84,0.55)]
+      hover:brightness-[1.06] hover:-translate-y-px active:translate-y-0 active:brightness-100
+      disabled:from-surface-hover disabled:to-surface-hover disabled:text-ink-faint
+      disabled:shadow-none disabled:pointer-events-none
       transition-all duration-150;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg
-      border border-border text-gray-300 font-medium text-sm
-      hover:bg-surface-hover hover:text-white
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-[10px]
+      border border-border text-ink-dim font-medium text-[13px]
+      hover:border-accent/50 hover:text-accent hover:bg-accent/5
+      disabled:opacity-40 disabled:pointer-events-none
+      transition-all duration-150;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-[10px]
+      bg-danger text-ink font-semibold text-[13px]
+      hover:brightness-110 active:brightness-95
+      disabled:opacity-40 disabled:pointer-events-none
       transition-all duration-150;
   }
 
   .card {
-    @apply bg-surface-card border border-border rounded-xl p-5
+    @apply bg-gradient-to-b from-surface-elevated to-surface-card border border-border rounded-[13px] p-5
       transition-all duration-200;
   }
 
   .card-hover {
-    @apply card hover:border-accent/30 hover:shadow-[0_0_16px_rgba(45,212,191,0.06)];
+    @apply card hover:border-accent/30 hover:-translate-y-0.5
+      hover:shadow-[0_26px_50px_-34px_rgba(0,0,0,0.95)];
   }
 
   .input {
-    @apply w-full px-3 py-2 rounded-lg bg-surface border border-border
-      text-white placeholder-gray-600 font-body text-sm
-      focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20
+    @apply w-full px-3 py-2 rounded-[9px] bg-surface border border-border
+      text-ink placeholder-ink-faint font-body text-sm
+      focus:outline-none focus:border-accent/55 focus:ring-1 focus:ring-accent/20
       transition-all duration-150;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px]
+      font-mono uppercase tracking-[0.1em] border border-border text-ink-dim;
   }
 }
 
 @layer utilities {
   .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-accent via-accent-secondary to-studio-indigo;
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-accent via-accent-secondary to-tag-purple;
   }
 
   .glow-teal {
-    box-shadow: 0 0 20px rgba(45, 212, 191, 0.15);
+    box-shadow: 0 0 20px rgb(var(--c-amber) / 0.15);
   }
 
   .glow-teal-sm {
-    box-shadow: 0 0 8px rgba(45, 212, 191, 0.1);
+    box-shadow: 0 0 8px rgb(var(--c-amber) / 0.1);
   }
 }

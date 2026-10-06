@@ -106,3 +106,14 @@ workflow/
 - **Google Flow**: 100 imágenes/día por cuenta
 - **faster-whisper**: modelo `small` en CPU (~5x tiempo real)
 - **Render**: FFmpeg en CPU, videos de hasta ~10 min
+
+## Roadmap (Must Have / TODO)
+
+- [ ] **Diarización de hablantes** — identificar quién habla en cada fragmento (ej. llamadas cliente/agente) integrando `pyannote.audio` al pipeline de transcripción:
+  - Modelo: `pyannote/speaker-diarization-community-1` con GPU CUDA (probado en RTX 3050, ~30s por 10 min de audio).
+  - Requisitos: token de Hugging Face (`hf auth login`) y aceptar términos de los modelos gated `pyannote/speaker-diarization-community-1` y `pyannote/segmentation-3.0`.
+  - Audio telefónico μ-law 8kHz soportado: decodificar con PyAV a 16kHz (`torchcodec` requiere FFmpeg *shared*, alternativa: pre-cargar waveform en memoria y no pasar rutas de archivo).
+  - Script base funcional: `backend/scripts/diarize_speakers.py` — asigna speaker por palabra (máximo solape temporal sobre `script.json`) y genera `.speakers.txt/.speakers.srt/.speakers.json`.
+  - **Calidad máxima**: usar `large-v3` con `beam_size=5`, `language="es"`, `condition_on_previous_text=False`.
+  - **Transcripción guiada por diarización** (evita fragmentos perdidos por el VAD de Whisper): tomar los turnos de pyannote como regiones de voz (+0.3s de pad, fusionar huecos <1s), transcribir cada región sin VAD y re-diarizar para etiquetar. Script: `backend/scripts/transcribe_diar_guided.py`.
+  - Pendiente: endpoint en `routers/transcribe.py`, UI para renombrar hablantes y render de subtítulos con color/estilo por locutor.

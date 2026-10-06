@@ -4,19 +4,19 @@ interface BadgeProps {
 }
 
 const variants = {
-  default: "bg-gray-800 text-gray-300",
-  success: "bg-emerald-500/15 text-emerald-400",
-  warning: "bg-amber-500/15 text-amber-400",
-  error: "bg-red-500/15 text-red-400",
-  info: "bg-sky-500/15 text-sky-400",
+  default: "border-border text-ink-dim",
+  success: "border-ok/40 text-ok",
+  warning: "border-accent/40 text-accent",
+  error: "border-danger/40 text-danger",
+  info: "border-tag-blue/40 text-tag-blue",
 }
 
 export default function Badge({ variant = "default", children }: BadgeProps) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium font-sans ${variants[variant]}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[10px] font-mono uppercase tracking-[0.12em] ${variants[variant]}`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${variants[variant].split(" ")[1]}`} />
+      <span className="w-1.5 h-1.5 rounded-full bg-current" />
       {children}
     </span>
   )

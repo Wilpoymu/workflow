@@ -189,7 +189,7 @@ export default function Render() {
                   Download
                 </button>
                 <button
-                  className="btn-secondary text-xs !text-red-400 hover:!bg-red-500/10"
+                  className="btn-secondary text-xs !text-danger hover:!bg-danger/10"
                   onClick={handleDeleteRender}
                   title="Delete current render"
                 >
@@ -222,12 +222,12 @@ export default function Render() {
         <div className="lg:col-span-2 space-y-6">
           {/* Image Selection */}
           <Card>
-            <h3 className="text-sm font-semibold text-foreground dark:text-white mb-4 font-sans">
+            <h3 className="text-sm font-semibold text-ink mb-4 font-sans">
               Image Selection
             </h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">
+                <label className="text-xs text-ink-dim font-medium block mb-1.5 font-sans">
                   Filter Mode
                 </label>
                 <select
@@ -242,7 +242,7 @@ export default function Render() {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">
+                <label className="text-xs text-ink-dim font-medium block mb-1.5 font-sans">
                   Random Seed
                 </label>
                 <input
@@ -260,12 +260,12 @@ export default function Render() {
 
           {/* Video Settings */}
           <Card>
-            <h3 className="text-sm font-semibold text-foreground dark:text-white mb-4 font-sans">
+            <h3 className="text-sm font-semibold text-ink mb-4 font-sans">
               Video Settings
             </h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">
+                <label className="text-xs text-ink-dim font-medium block mb-1.5 font-sans">
                   Resolution
                 </label>
                 <select
@@ -283,7 +283,7 @@ export default function Render() {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">
+                <label className="text-xs text-ink-dim font-medium block mb-1.5 font-sans">
                   FPS
                 </label>
                 <select
@@ -298,7 +298,7 @@ export default function Render() {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-500 font-medium block mb-1.5 font-sans">
+                <label className="text-xs text-ink-dim font-medium block mb-1.5 font-sans">
                   Movement Intensity
                 </label>
                 <input
@@ -311,7 +311,7 @@ export default function Render() {
                   onChange={(e) => updateConfig("intensity", parseFloat(e.target.value))}
                   disabled={status === "running"}
                 />
-                <span className="text-xs text-gray-400 font-mono">
+                <span className="text-xs text-ink-dim font-mono">
                   {(config.intensity * 100).toFixed(0)}%
                 </span>
               </div>
@@ -324,7 +324,7 @@ export default function Render() {
                     onChange={(e) => updateConfig("subtitles", e.target.checked)}
                     disabled={status === "running"}
                   />
-                  <span className="text-sm text-gray-300">Burn subtitles</span>
+                  <span className="text-sm text-ink-dim">Burn subtitles</span>
                 </label>
               </div>
             </div>
@@ -332,14 +332,14 @@ export default function Render() {
 
           {/* Progress */}
           <Card>
-            <h3 className="text-sm font-semibold text-foreground dark:text-white mb-4 font-sans">Progress</h3>
+            <h3 className="text-sm font-semibold text-ink mb-4 font-sans">Progress</h3>
             <ProgressBar progress={progress} />
-            <div className="mt-4 flex items-center gap-3 text-xs text-gray-600 font-mono">
+            <div className="mt-4 flex items-center gap-3 text-xs text-ink-faint font-mono">
               <span>Status: {status}</span>
               {message && <span>• {message}</span>}
             </div>
             {status === "failed" && (
-              <div className="mt-3 flex items-center gap-2 text-red-400 text-xs">
+              <div className="mt-3 flex items-center gap-2 text-danger text-xs">
                 <AlertCircle className="w-4 h-4" />
                 <span>{message}</span>
               </div>
@@ -357,21 +357,21 @@ export default function Render() {
               />
               <Card>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider font-sans">
+                  <span className="text-xs font-semibold text-ink-dim uppercase tracking-wider font-sans">
                     Video Info
                   </span>
-                  <span className="text-xs text-gray-300 font-mono">{fileSize} MB</span>
+                  <span className="text-xs text-ink-dim font-mono">{fileSize} MB</span>
                 </div>
               </Card>
             </>
           ) : (
             <Card className="p-0 overflow-hidden">
               <div className="aspect-video bg-surface-elevated flex items-center justify-center">
-                <Video className="w-12 h-12 text-gray-800" />
+                <Video className="w-12 h-12 text-ink-faint" />
               </div>
               <div className="p-4">
-                <h3 className="text-sm font-semibold text-foreground dark:text-white font-sans">Preview</h3>
-                <p className="text-xs text-gray-600 font-body mt-1">
+                <h3 className="text-sm font-semibold text-ink font-sans">Preview</h3>
+                <p className="text-xs text-ink-faint font-body mt-1">
                   Render output will appear here
                 </p>
               </div>
@@ -380,33 +380,33 @@ export default function Render() {
 
           <Card>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider font-sans">
+              <span className="text-xs font-semibold text-ink-dim uppercase tracking-wider font-sans">
                 Status
               </span>
               {status === "done" ? (
-                <span className="flex items-center gap-1.5 text-xs text-green-400 font-mono">
+                <span className="flex items-center gap-1.5 text-xs text-ok font-mono">
                   <CheckCircle className="w-3.5 h-3.5" />
                   Complete
                 </span>
               ) : status === "failed" ? (
-                <span className="flex items-center gap-1.5 text-xs text-red-400 font-mono">
+                <span className="flex items-center gap-1.5 text-xs text-danger font-mono">
                   <AlertCircle className="w-3.5 h-3.5" />
                   Failed
                 </span>
               ) : status === "running" ? (
                 <span className="text-xs text-accent font-mono">Rendering...</span>
               ) : (
-                <span className="text-xs text-gray-500 font-mono">Idle</span>
+                <span className="text-xs text-ink-dim font-mono">Idle</span>
               )}
             </div>
           </Card>
 
           {/* Features Info */}
           <Card>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 font-sans">
+            <h3 className="text-xs font-semibold text-ink-dim uppercase tracking-wider mb-3 font-sans">
               Features
             </h3>
-            <ul className="space-y-3 text-xs text-gray-400">
+            <ul className="space-y-3 text-xs text-ink-dim">
               <li className="flex items-center gap-2">
                 <Check className="w-3.5 h-3.5 text-accent shrink-0" />
                 Auto-sync with Whisper transcription

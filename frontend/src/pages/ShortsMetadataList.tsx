@@ -43,7 +43,7 @@ function CopyBtn({ text, label }: { text: string; label: string }) {
     } catch { toast("Failed to copy", "error") }
   }
   return (
-    <button onClick={copy} className="text-xs text-gray-500 hover:text-accent transition-colors flex items-center gap-1 shrink-0">
+    <button onClick={copy} className="text-xs text-ink-dim hover:text-accent transition-colors flex items-center gap-1 shrink-0">
       {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
       {copied ? "Copied" : "Copy"}
     </button>
@@ -51,12 +51,12 @@ function CopyBtn({ text, label }: { text: string; label: string }) {
 }
 
 function TagCloud({ tags, color }: { tags: string[]; color?: string }) {
-  if (!tags?.length) return <p className="text-xs text-gray-700 py-1">None</p>
+  if (!tags?.length) return <p className="text-xs text-ink-faint py-1">None</p>
   return (
     <div className="flex flex-wrap gap-1.5">
       {tags.map((t, i) => (
         <span key={i} className={`text-xs px-2 py-0.5 rounded-full border font-mono ${
-          color || "bg-surface-hover text-gray-300 border-border"
+          color || "bg-surface-hover text-ink-dim border-border"
         }`}>
           {t.startsWith("#") ? t : `#${t}`}
         </span>
@@ -70,14 +70,14 @@ function PlatformSection({ data, platform }: { data: ShortMetadataEntry["tiktok"
   if (!data) return null
 
   const isLong = data.description.length > 200
-  const icon = platform === "tiktok" ? <Smartphone className="w-4 h-4 text-pink-400" /> : <PlaySquare className="w-4 h-4 text-red-400" />
+  const icon = platform === "tiktok" ? <Smartphone className="w-4 h-4 text-tag-pink" /> : <PlaySquare className="w-4 h-4 text-danger" />
 
   return (
-    <div className={`rounded-lg border p-4 ${platform === "tiktok" ? "border-pink-500/10 bg-pink-500/[0.02]" : "border-red-500/10 bg-red-500/[0.02]"}`}>
+    <div className={`rounded-lg border p-4 ${platform === "tiktok" ? "border-tag-pink/10 bg-tag-pink/[0.02]" : "border-danger/10 bg-danger/[0.02]"}`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           {icon}
-          <h4 className="text-xs font-semibold text-foreground dark:text-white uppercase tracking-wider">{platform === "tiktok" ? "TikTok" : "YouTube Shorts"}</h4>
+          <h4 className="text-xs font-semibold text-ink uppercase tracking-wider">{platform === "tiktok" ? "TikTok" : "YouTube Shorts"}</h4>
         </div>
         <CopyBtn text={`${data.title}\n\n${data.description}`} label={`${platform} metadata`} />
       </div>
@@ -85,20 +85,20 @@ function PlatformSection({ data, platform }: { data: ShortMetadataEntry["tiktok"
       {/* Title */}
       <div className="mb-3">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] text-gray-600 font-semibold uppercase">Title</span>
+          <span className="text-[10px] text-ink-faint font-semibold uppercase">Title</span>
           <CopyBtn text={data.title} label="Title" />
         </div>
-        <p className="text-sm text-foreground dark:text-white font-body bg-surface-hover rounded-lg px-3 py-2 border border-border">{data.title}</p>
-        <p className="text-[11px] text-gray-600 mt-0.5 font-mono">{data.title.length} chars</p>
+        <p className="text-sm text-ink font-body bg-surface-hover rounded-lg px-3 py-2 border border-border">{data.title}</p>
+        <p className="text-[11px] text-ink-faint mt-0.5 font-mono">{data.title.length} chars</p>
       </div>
 
       {/* Description */}
       <div className="mb-3">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] text-gray-600 font-semibold uppercase">Description</span>
+          <span className="text-[10px] text-ink-faint font-semibold uppercase">Description</span>
           <CopyBtn text={data.description} label="Description" />
         </div>
-        <p className={`text-sm text-gray-300 font-body bg-surface-hover rounded-lg px-3 py-2 border border-border ${showAll || !isLong ? "" : "line-clamp-2"}`}>
+        <p className={`text-sm text-ink-dim font-body bg-surface-hover rounded-lg px-3 py-2 border border-border ${showAll || !isLong ? "" : "line-clamp-2"}`}>
           {data.description}
         </p>
         {isLong && (
@@ -112,7 +112,7 @@ function PlatformSection({ data, platform }: { data: ShortMetadataEntry["tiktok"
       {"tags" in data && data.tags?.length > 0 && (
         <div className="mb-3">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-gray-600 font-semibold uppercase">Tags</span>
+            <span className="text-[10px] text-ink-faint font-semibold uppercase">Tags</span>
             <CopyBtn text={data.tags.join(", ")} label="Tags" />
           </div>
           <TagCloud tags={data.tags} />
@@ -123,7 +123,7 @@ function PlatformSection({ data, platform }: { data: ShortMetadataEntry["tiktok"
       {"hashtags" in data && data.hashtags?.length > 0 && (
         <div className="mb-3">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-gray-600 font-semibold uppercase">Hashtags</span>
+            <span className="text-[10px] text-ink-faint font-semibold uppercase">Hashtags</span>
             <CopyBtn text={data.hashtags.map(h => h.startsWith("#") ? h : `#${h}`).join(" ")} label="Hashtags" />
           </div>
           <TagCloud tags={data.hashtags} color="bg-accent/10 text-accent border-accent/20" />
@@ -132,17 +132,17 @@ function PlatformSection({ data, platform }: { data: ShortMetadataEntry["tiktok"
 
       {/* TikTok Audio */}
       {platform === "tiktok" && (data as any).audio_suggestion && (
-        <div className="flex items-center gap-2 text-xs text-gray-400 bg-surface-hover rounded-lg px-3 py-2 border border-border">
-          <Music className="w-3.5 h-3.5 text-pink-400" />
-          <span><span className="text-gray-600">Audio:</span> {(data as any).audio_suggestion}</span>
+        <div className="flex items-center gap-2 text-xs text-ink-dim bg-surface-hover rounded-lg px-3 py-2 border border-border">
+          <Music className="w-3.5 h-3.5 text-tag-pink" />
+          <span><span className="text-ink-faint">Audio:</span> {(data as any).audio_suggestion}</span>
         </div>
       )}
 
       {/* YouTube Category */}
       {platform === "youtube" && (data as any).category && (
-        <div className="flex items-center gap-2 text-xs text-gray-400 bg-surface-hover rounded-lg px-3 py-2 border border-border">
-          <PlaySquare className="w-3.5 h-3.5 text-red-400" />
-          <span><span className="text-gray-600">Category:</span> {(data as any).category}</span>
+        <div className="flex items-center gap-2 text-xs text-ink-dim bg-surface-hover rounded-lg px-3 py-2 border border-border">
+          <PlaySquare className="w-3.5 h-3.5 text-danger" />
+          <span><span className="text-ink-faint">Category:</span> {(data as any).category}</span>
         </div>
       )}
     </div>
@@ -239,34 +239,34 @@ export default function ShortsMetadataList() {
         {/* Sidebar */}
         <div className="lg:col-span-1 space-y-4">
           <Card>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Summary</h3>
+            <h3 className="text-xs font-semibold text-ink-dim uppercase tracking-wider mb-4">Summary</h3>
             {loading ? (
               <div className="animate-pulse space-y-2">
                 {[1,2,3].map(i => <div key={i} className="h-4 bg-surface-hover rounded" />)}
               </div>
             ) : (
               <div className="space-y-2 text-xs">
-                <div className="flex justify-between"><span className="text-gray-500">Total shorts</span><span className="text-foreground dark:text-white font-mono">{stats.total}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">With TikTok</span><span className="text-pink-400 font-mono">{stats.withTikTok}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">With YouTube</span><span className="text-red-400 font-mono">{stats.withYouTube}</span></div>
+                <div className="flex justify-between"><span className="text-ink-dim">Total shorts</span><span className="text-ink text-ink font-mono">{stats.total}</span></div>
+                <div className="flex justify-between"><span className="text-ink-dim">With TikTok</span><span className="text-tag-pink font-mono">{stats.withTikTok}</span></div>
+                <div className="flex justify-between"><span className="text-ink-dim">With YouTube</span><span className="text-danger font-mono">{stats.withYouTube}</span></div>
               </div>
             )}
           </Card>
 
           {/* Generate new */}
           <Card>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Generate New</h3>
+            <h3 className="text-xs font-semibold text-ink-dim uppercase tracking-wider mb-3">Generate New</h3>
             <div className="space-y-2">
               <input
                 type="text"
                 placeholder="Index (e.g. 0, manual_2)"
-                className="w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-xs text-gray-300 font-mono focus:outline-none focus:border-accent"
+                className="w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-xs text-ink-dim font-mono focus:outline-none focus:border-accent"
                 value={newIndex}
                 onChange={(e) => setNewIndex(e.target.value)}
               />
               <textarea
                 placeholder="Paste the short text..."
-                className="w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-xs text-gray-300 font-body focus:outline-none focus:border-accent resize-y h-20"
+                className="w-full bg-surface-hover border border-border rounded-lg px-3 py-2 text-xs text-ink-dim font-body focus:outline-none focus:border-accent resize-y h-20"
                 value={newText}
                 onChange={(e) => setNewText(e.target.value)}
               />
@@ -285,7 +285,7 @@ export default function ShortsMetadataList() {
 
           {projectId && (
             <Link to={`/shorts/${projectId}`}
-              className="flex items-center gap-2 text-xs text-gray-500 hover:text-accent transition-colors px-3 py-2 rounded-lg bg-surface-hover border border-border">
+              className="flex items-center gap-2 text-xs text-ink-dim hover:text-accent transition-colors px-3 py-2 rounded-lg bg-surface-hover border border-border">
               <ExternalLink className="w-3.5 h-3.5" />
               Go to Shorts page
             </Link>
@@ -298,7 +298,7 @@ export default function ShortsMetadataList() {
             <Card>
               <div className="text-center py-10">
                 <RefreshCw className="w-8 h-8 text-accent animate-spin mx-auto mb-2" />
-                <p className="text-sm text-gray-400">Loading metadata...</p>
+                <p className="text-sm text-ink-dim">Loading metadata...</p>
               </div>
             </Card>
           )}
@@ -307,10 +307,10 @@ export default function ShortsMetadataList() {
             <Card>
               <div className="text-center py-14">
                 <div className="w-14 h-14 rounded-xl bg-surface-hover flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="w-7 h-7 text-gray-700" />
+                  <Sparkles className="w-7 h-7 text-ink-faint" />
                 </div>
-                <p className="text-sm text-gray-400 font-body mb-1">No shorts metadata yet</p>
-                <p className="text-xs text-gray-600 font-body mb-5">Generate metadata from the Shorts page or use the form on the left</p>
+                <p className="text-sm text-ink-dim font-body mb-1">No shorts metadata yet</p>
+                <p className="text-xs text-ink-faint font-body mb-5">Generate metadata from the Shorts page or use the form on the left</p>
                 <Link to={`/shorts/${projectId}`} className="btn-primary inline-flex items-center gap-2">
                   <ExternalLink className="w-4 h-4" /> Go to Shorts
                 </Link>
@@ -324,7 +324,7 @@ export default function ShortsMetadataList() {
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-mono text-accent bg-accent/10 px-2 py-0.5 rounded font-semibold">#{index}</span>
-                  <span className="text-xs text-gray-600 font-mono">
+                  <span className="text-xs text-ink-faint font-mono">
                     {entry.generated_at ? new Date(entry.generated_at).toLocaleString() : ""}
                   </span>
                 </div>
@@ -332,7 +332,7 @@ export default function ShortsMetadataList() {
                   <button
                     onClick={() => handleGenerate(index, entry.generated_from)}
                     disabled={generating === index}
-                    className="text-xs text-gray-500 hover:text-accent transition-colors flex items-center gap-1"
+                    className="text-xs text-ink-dim hover:text-accent transition-colors flex items-center gap-1"
                   >
                     <RefreshCw className={`w-3 h-3 ${generating === index ? "animate-spin" : ""}`} />
                     Regenerate
@@ -347,10 +347,10 @@ export default function ShortsMetadataList() {
               {/* Text preview */}
               <div className="mb-4 bg-surface-hover rounded-lg px-3 py-2 border border-border">
                 <div className="flex items-center gap-1.5 mb-1">
-                  <FileText className="w-3 h-3 text-gray-600" />
-                  <span className="text-[10px] text-gray-600 font-semibold uppercase">Script preview</span>
+                  <FileText className="w-3 h-3 text-ink-faint" />
+                  <span className="text-[10px] text-ink-faint font-semibold uppercase">Script preview</span>
                 </div>
-                <p className="text-xs text-gray-400 font-body line-clamp-2">{entry.generated_from || "—"}</p>
+                <p className="text-xs text-ink-dim font-body line-clamp-2">{entry.generated_from || "—"}</p>
               </div>
 
               {/* Platform sections */}
